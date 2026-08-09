@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronRight,
   Files,
   Folder,
+  FolderOpen,
   FolderPlus,
   Home,
   LayoutTemplate,
@@ -25,12 +27,13 @@ const navigation = [
   { id: "tags", label: "태그", icon: Tags },
 ];
 
-function SidebarPage({ page, active, onSelect }) {
+function SidebarPage({ page, active, nested = false, tabIndex, onSelect }) {
   return (
     <button
-      className={`sidebar-page ${active ? "is-active" : ""}`}
+      className={`sidebar-page ${nested ? "is-nested" : ""} ${active ? "is-active" : ""}`}
       type="button"
       aria-current={active ? "page" : undefined}
+      tabIndex={tabIndex}
       onClick={() => onSelect(page)}
     >
       <PageGlyph page={page} size={15} />
@@ -46,13 +49,11 @@ export default function Sidebar({
   query,
   loading,
   view,
-  folderFilter,
   onQueryChange,
   onCreate,
   onCreateFolder,
   onSelect,
   onNavigate,
-  onOpenFolder,
   onOpenSettings,
   onClose,
   connected,
@@ -60,6 +61,7 @@ export default function Sidebar({
   const searchRef = useRef(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [expandedFolders, setExpandedFolders] = useState(() => new Set());
   const folders = useMemo(() => {
     const counts = new Map();
     for (const page of pages) {
@@ -69,6 +71,20 @@ export default function Sidebar({
     return [...counts.entries()].sort(([left], [right]) => left.localeCompare(right, "ko-KR"));
   }, [pages]);
   const recentPages = pages.slice(0, 5);
+  const selectedFolder = useMemo(() => {
+    const selected = pages.find((page) => page.id === selectedId);
+    return selected ? selected.folder?.trim() || "미분류" : "";
+  }, [pages, selectedId]);
+
+  useEffect(() => {
+    if (!selectedFolder) return;
+    setExpandedFolders((current) => {
+      if (current.has(selectedFolder)) return current;
+      const next = new Set(current);
+      next.add(selectedFolder);
+      return next;
+    });
+  }, [selectedFolder, selectedId]);
 
   useEffect(() => {
     function handleShortcut(event) {
@@ -89,6 +105,15 @@ export default function Sidebar({
     await onCreateFolder(name);
     setFolderName("");
     setCreatingFolder(false);
+  }
+
+  function toggleFolder(folder) {
+    setExpandedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
   }
 
   return (
@@ -155,13 +180,46 @@ export default function Sidebar({
               </button>
             </div>
             <div className="folder-list">
-              {folders.map(([folder, count]) => (
-                <button key={folder} className={`folder-row ${view === "all" && folderFilter === folder ? "is-active" : ""}`} type="button" onClick={() => onOpenFolder(folder)}>
-                  <Folder size={16} strokeWidth={1.7} />
-                  <span>{folder}</span>
-                  <small>{count}</small>
-                </button>
-              ))}
+              {folders.map(([folder, count]) => {
+                const expanded = expandedFolders.has(folder);
+                const folderPages = pages.filter((page) => (page.folder?.trim() || "미분류") === folder);
+                const panelId = `folder-panel-${encodeURIComponent(folder)}`;
+                return (
+                  <div key={folder} className={`folder-tree-item ${expanded ? "is-expanded" : ""}`}>
+                    <div className="folder-tree-heading">
+                      <button
+                        className={`folder-row ${selectedFolder === folder ? "has-selected" : ""}`}
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls={panelId}
+                        onClick={() => toggleFolder(folder)}
+                      >
+                        <ChevronRight className="folder-chevron" size={14} strokeWidth={2} />
+                        {expanded ? <FolderOpen className="folder-icon" size={17} strokeWidth={1.8} /> : <Folder className="folder-icon" size={17} strokeWidth={1.8} />}
+                        <span>{folder}</span>
+                        <small>{count}</small>
+                      </button>
+                      <button className="folder-add-page" type="button" aria-label={`${folder}에 페이지 추가`} title={`${folder}에 새 페이지`} onClick={() => onCreate(folder)}>
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <div id={panelId} className="folder-children-shell" role="group" aria-label={`${folder} 폴더 페이지`} aria-hidden={!expanded}>
+                      <div className="folder-children">
+                        {folderPages.map((page) => (
+                          <SidebarPage
+                            key={page.id}
+                            page={page}
+                            active={view === "editor" && selectedId === page.id}
+                            nested
+                            tabIndex={expanded ? 0 : -1}
+                            onSelect={onSelect}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
               {creatingFolder && (
                 <form className="folder-composer" onSubmit={submitFolder}>
                   <Folder size={15} />

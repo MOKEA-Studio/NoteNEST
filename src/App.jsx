@@ -99,7 +99,6 @@ export default function App() {
   const [saveState, setSaveState] = useState("saved");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [view, setView] = useState("editor");
-  const [folderFilter, setFolderFilter] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [settings, setSettings] = useState(defaultSettings);
   const [trashPages, setTrashPages] = useState([]);
@@ -495,16 +494,9 @@ export default function App() {
       setSidebarOpen(false);
       return;
     }
-    if (nextView === "all") setFolderFilter("");
     if (nextView === "trash") loadTrash();
     setView(nextView);
     if (nextView !== "search") setSidebarOpen(false);
-  }
-
-  function handleOpenFolder(folder) {
-    setFolderFilter(folder);
-    setView("all");
-    setSidebarOpen(false);
   }
 
   function handleSearchChange(value) {
@@ -606,13 +598,11 @@ export default function App() {
         query={query}
         loading={loading}
         view={view}
-        folderFilter={folderFilter}
         onQueryChange={handleSearchChange}
         onCreate={handleCreate}
         onCreateFolder={handleCreateFolder}
         onSelect={handleSelect}
         onNavigate={handleNavigate}
-        onOpenFolder={handleOpenFolder}
         onOpenSettings={handleOpenSettings}
         onClose={() => setSidebarOpen(false)}
         connected={connected}
@@ -640,11 +630,10 @@ export default function App() {
         <SearchPage query={query} pages={pages} onQueryChange={handleSearchChange} onSelect={handleSelect} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : view === "all" || view === "favorites" ? (
         <LibraryPage
-          key={`${view}-${folderFilter}`}
+          key={view}
           title={view === "favorites" ? "즐겨찾기" : "모든 노트"}
           pages={view === "favorites" ? favoritePages : pages}
           allFolders={folders}
-          folderFilter={view === "all" ? folderFilter : ""}
           selectedId={selectedId}
           onSelect={handleSelect}
           onCreate={handleCreate}
