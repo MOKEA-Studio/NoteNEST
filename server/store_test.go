@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPageLifecycle(t *testing.T) {
@@ -56,12 +57,49 @@ func TestPageLifecycle(t *testing.T) {
 	if err != nil || len(results) != 1 {
 		t.Fatalf("tag search failed: %#v, %v", results, err)
 	}
+	versions, err := dataStore.listVersions(ctx, created.ID)
+	if err != nil || len(versions) != 1 {
+		t.Fatalf("expected one saved version: %#v, %v", versions, err)
+	}
+	secondTitle := "변경된 프로젝트 아이디어"
+	if _, err := dataStore.updatePage(ctx, created.ID, pageInput{Title: &secondTitle}); err != nil {
+		t.Fatal(err)
+	}
+	versions, err = dataStore.listVersions(ctx, created.ID)
+	if err != nil || len(versions) != 2 {
+		t.Fatalf("expected two saved versions: %#v, %v", versions, err)
+	}
+	restoredVersion, err := dataStore.restoreVersion(ctx, created.ID, versions[0].ID)
+	if err != nil || restoredVersion.Title != title {
+		t.Fatalf("version restore failed: %#v, %v", restoredVersion, err)
+	}
 
 	if err := dataStore.deletePage(ctx, created.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := dataStore.getPage(ctx, created.ID); err != errNotFound {
 		t.Fatalf("expected errNotFound, got %v", err)
+	}
+	trash, err := dataStore.listTrash(ctx, "프로젝트")
+	if err != nil || len(trash) != 1 || trash[0].DeletedAt == nil {
+		t.Fatalf("unexpected trash: %#v, %v", trash, err)
+	}
+	restored, err := dataStore.restorePage(ctx, created.ID)
+	if err != nil || restored.DeletedAt != nil {
+		t.Fatalf("restore failed: %#v, %v", restored, err)
+	}
+	if err := dataStore.deletePage(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := dataStore.permanentlyDeletePage(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if trash, err := dataStore.listTrash(ctx, ""); err != nil || len(trash) != 0 {
+		t.Fatalf("trash should be empty: %#v, %v", trash, err)
+	}
+	var versionCount int
+	if err := dataStore.db.QueryRow(`SELECT COUNT(*) FROM page_versions WHERE page_id = ?`, created.ID).Scan(&versionCount); err != nil || versionCount != 0 {
+		t.Fatalf("page versions should be deleted, count=%d, err=%v", versionCount, err)
 	}
 }
 
@@ -76,6 +114,9 @@ func TestSettingsPersistence(t *testing.T) {
 	settings.FontFamily = "http://127.0.0.1:8787/uploads/font_test.woff2"
 	settings.FontSize = 18
 	settings.EditorWidth = "wide"
+	settings.Theme = "dark"
+	settings.LineSpacing = "relaxed"
+	settings.ReduceMotion = true
 	settings.CustomFonts = []FontAsset{{Name: "나의 폰트", URL: settings.FontFamily}}
 	if _, err := dataStore.saveSettings(context.Background(), settings); err != nil {
 		t.Fatal(err)
@@ -84,8 +125,79 @@ func TestSettingsPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.FontFamily != settings.FontFamily || loaded.FontSize != 18 || len(loaded.CustomFonts) != 1 {
+	if loaded.FontFamily != settings.FontFamily || loaded.FontSize != 18 || loaded.Theme != "dark" || loaded.LineSpacing != "relaxed" || !loaded.ReduceMotion || len(loaded.CustomFonts) != 1 {
 		t.Fatalf("unexpected settings: %#v", loaded)
+	}
+}
+
+func TestBackupAndStorageInfo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "backup.db")
+	dataStore, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dataStore.close()
+	if _, err := dataStore.createPage(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	backup, err := dataStore.createBackup(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backup.Size == 0 {
+		t.Fatal("backup should not be empty")
+	}
+	if _, err := dataStore.createBackup(context.Background()); err != nil {
+		t.Fatalf("consecutive backup failed: %v", err)
+	}
+	storage, err := dataStore.storageInfo(filepath.Join(filepath.Dir(path), "uploads"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storage.NotesBytes == 0 || storage.BackupsBytes == 0 || len(storage.Backups) != 2 {
+		t.Fatalf("unexpected storage info: %#v", storage)
+	}
+}
+
+func TestExpiredTrashPurgesPagesAndVersions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "expired.db")
+	dataStore, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	page, err := dataStore.createPage(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := "만료될 페이지"
+	if _, err := dataStore.updatePage(ctx, page.ID, pageInput{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dataStore.deletePage(ctx, page.ID); err != nil {
+		t.Fatal(err)
+	}
+	expiredAt := time.Now().UTC().AddDate(0, 0, -31).Format(time.RFC3339Nano)
+	if _, err := dataStore.db.Exec(`UPDATE pages SET deleted_at = ? WHERE id = ?`, expiredAt, page.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := dataStore.close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.close()
+	for table, query := range map[string]string{
+		"pages":         `SELECT COUNT(*) FROM pages WHERE id = ?`,
+		"page_versions": `SELECT COUNT(*) FROM page_versions WHERE page_id = ?`,
+	} {
+		var count int
+		if err := reopened.db.QueryRow(query, page.ID).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("expired %s were not purged, count=%d, err=%v", table, count, err)
+		}
 	}
 }
 

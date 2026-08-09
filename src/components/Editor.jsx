@@ -1,10 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
   Check,
+  CloudOff,
   FileText,
   Folder,
+  History,
   ImagePlus,
   LoaderCircle,
   Plus,
@@ -17,6 +19,7 @@ import { uploadsApi } from "../api";
 import { normalizeTags, tagTone } from "../utils";
 import BlockEditor from "./BlockEditor";
 import { MobileMenuButton } from "./Sidebar";
+import VersionHistoryPanel from "./VersionHistoryPanel";
 
 const pageIcons = ["📝", "💡", "✅", "📚", "🎯", "📌", "🧭", "💻", "🌿", "✨"];
 
@@ -33,7 +36,15 @@ function SaveStatus({ state }) {
     return (
       <span className="save-state">
         <LoaderCircle className="spin" aria-hidden="true" size={14} />
-        저장 중
+        <span>저장 중</span>
+      </span>
+    );
+  }
+  if (state === "offline") {
+    return (
+      <span className="save-state is-offline">
+        <CloudOff aria-hidden="true" size={14} />
+        <span>기기에 임시 저장</span>
       </span>
     );
   }
@@ -41,14 +52,14 @@ function SaveStatus({ state }) {
     return (
       <span className="save-state is-error">
         <AlertCircle aria-hidden="true" size={14} />
-        저장 실패
+        <span>저장 실패</span>
       </span>
     );
   }
   return (
     <span className="save-state">
       <Check aria-hidden="true" size={14} />
-      저장됨
+      <span>저장됨</span>
     </span>
   );
 }
@@ -112,11 +123,14 @@ function PageIcon({ value, onChange, onError }) {
   );
 }
 
-export default function Editor({ page, folders, saveState, settings, onChange, onDelete, onOpenSidebar }) {
+export default function Editor({ page, folders, saveState, settings, onChange, onDelete, onRestoreVersion, onOpenSidebar }) {
   const coverInputRef = useRef(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [assetError, setAssetError] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  useEffect(() => setHistoryOpen(false), [page.id]);
 
   async function uploadCover(file) {
     setCoverUploading(true);
@@ -154,6 +168,9 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
         <div className="toolbar-actions">
           <SaveStatus state={saveState} />
           <span className="toolbar-divider" aria-hidden="true" />
+          <button className={`icon-button ${historyOpen ? "is-active" : ""}`} type="button" aria-label="버전 기록" title="버전 기록" onClick={() => setHistoryOpen((current) => !current)}>
+            <History aria-hidden="true" size={18} />
+          </button>
           <button
             className={`icon-button ${page.favorite ? "is-favorite" : ""}`}
             type="button"
@@ -175,6 +192,7 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
         </div>
       </header>
 
+      <div className={`editor-workspace ${historyOpen ? "has-version-panel" : ""}`}>
       <div className="editor-scroll">
         {page.coverUrl && (
           <div className="page-cover">
@@ -251,6 +269,8 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
           </div>
           <BlockEditor page={page} onChange={onChange} />
         </article>
+      </div>
+      {historyOpen && <VersionHistoryPanel page={page} onRestore={onRestoreVersion} onClose={() => setHistoryOpen(false)} />}
       </div>
       <input
         ref={coverInputRef}

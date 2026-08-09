@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -72,9 +73,17 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("GET /api/pages/{id}", a.getPage)
 	mux.HandleFunc("PUT /api/pages/{id}", a.updatePage)
 	mux.HandleFunc("DELETE /api/pages/{id}", a.deletePage)
+	mux.HandleFunc("GET /api/pages/{id}/versions", a.listVersions)
+	mux.HandleFunc("POST /api/pages/{id}/versions/{versionId}/restore", a.restoreVersion)
 	mux.HandleFunc("GET /api/search", a.searchPages)
+	mux.HandleFunc("GET /api/trash", a.listTrash)
+	mux.HandleFunc("DELETE /api/trash", a.emptyTrash)
+	mux.HandleFunc("POST /api/trash/{id}/restore", a.restoreTrashPage)
+	mux.HandleFunc("DELETE /api/trash/{id}", a.permanentlyDeletePage)
 	mux.HandleFunc("GET /api/settings", a.getSettings)
 	mux.HandleFunc("PUT /api/settings", a.updateSettings)
+	mux.HandleFunc("GET /api/storage", a.getStorage)
+	mux.HandleFunc("POST /api/backups", a.createBackup)
 	mux.HandleFunc("POST /api/uploads", a.uploadAsset)
 	mux.HandleFunc("GET /uploads/{name}", a.serveUpload)
 	return cors(mux)
@@ -140,6 +149,63 @@ func (a *api) deletePage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *api) listTrash(w http.ResponseWriter, r *http.Request) {
+	pages, err := a.store.listTrash(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pages)
+}
+
+func (a *api) restoreTrashPage(w http.ResponseWriter, r *http.Request) {
+	page, err := a.store.restorePage(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
+}
+
+func (a *api) permanentlyDeletePage(w http.ResponseWriter, r *http.Request) {
+	if err := a.store.permanentlyDeletePage(r.Context(), r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) emptyTrash(w http.ResponseWriter, r *http.Request) {
+	if err := a.store.emptyTrash(r.Context()); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) listVersions(w http.ResponseWriter, r *http.Request) {
+	versions, err := a.store.listVersions(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, versions)
+}
+
+func (a *api) restoreVersion(w http.ResponseWriter, r *http.Request) {
+	versionID, err := strconv.ParseInt(r.PathValue("versionId"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 버전을 선택해주세요."})
+		return
+	}
+	page, err := a.store.restoreVersion(r.Context(), r.PathValue("id"), versionID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
+}
+
 func (a *api) getSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := a.store.getSettings(r.Context())
 	if err != nil {
@@ -167,6 +233,12 @@ func (a *api) updateSettings(w http.ResponseWriter, r *http.Request) {
 	if settings.EditorWidth != "standard" && settings.EditorWidth != "wide" && settings.EditorWidth != "compact" {
 		settings.EditorWidth = "standard"
 	}
+	if settings.Theme != "light" && settings.Theme != "dark" && settings.Theme != "system" {
+		settings.Theme = "system"
+	}
+	if settings.LineSpacing != "compact" && settings.LineSpacing != "comfortable" && settings.LineSpacing != "relaxed" {
+		settings.LineSpacing = "comfortable"
+	}
 	if settings.CustomFonts == nil {
 		settings.CustomFonts = make([]FontAsset, 0)
 	}
@@ -176,6 +248,24 @@ func (a *api) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
+}
+
+func (a *api) getStorage(w http.ResponseWriter, _ *http.Request) {
+	info, err := a.store.storageInfo(a.uploadDir)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
+}
+
+func (a *api) createBackup(w http.ResponseWriter, r *http.Request) {
+	backup, err := a.store.createBackup(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, backup)
 }
 
 func cors(next http.Handler) http.Handler {

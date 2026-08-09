@@ -39,16 +39,9 @@ NoteNest는 흩어진 생각을 차곡차곡 모아두는 앱이다.
 
 ### 추가 기능 후보
 
-- 할 일 체크박스 블록
-- 제목 블록
-- 코드 블록
-- 이미지 업로드
-- 즐겨찾기 페이지
-- 페이지 아이콘 설정
-- 다크 모드
 - OAuth 로그인
 - 클라우드 동기화
-- 오프라인 모드
+- 팀 단위 실시간 공동 편집
 
 ## 5. 화면 구성
 
@@ -146,8 +139,16 @@ GET    /api/pages/{id}
 PUT    /api/pages/{id}
 DELETE /api/pages/{id}
 GET    /api/search?q=keyword
+GET    /api/trash
+POST   /api/trash/{id}/restore
+DELETE /api/trash/{id}
+GET    /api/pages/{id}/versions
+POST   /api/pages/{id}/versions/{versionId}/restore
 GET    /api/settings
 PUT    /api/settings
+GET    /api/storage
+POST   /api/backups
+POST   /api/uploads
 ```
 
 ## 10. 개발 순서
@@ -195,11 +196,15 @@ NoteNest는 첫 버전에서 개인 메모 앱으로 시작하고, 이후 다음
 - 페이지 아이콘과 배너 이미지 업로드
 - 이미지 붙여넣기 및 드래그 앤 드롭 업로드
 - TTF, OTF, WOFF, WOFF2 사용자 폰트 업로드
-- 글자 크기와 페이지 너비를 관리하는 설정 화면
+- 글자 크기, 페이지 너비, 줄 간격, 테마와 동작을 관리하는 설정 화면
 - 전체 노트 목록·격자 보기와 선택 노트 상세 패널
 - 제목·본문·태그 범위를 선택할 수 있는 전역 검색과 날짜 필터
 - 페이지 폴더 이동, 태그 추가·이름 변경·삭제
-- 첫 실행용 빈 상태와 프로젝트 시작 템플릿
+- 회의, 프로젝트, 회고, 독서 등 8종 페이지 템플릿
+- 30일 휴지통, 페이지 복원·영구 삭제와 자동 저장 버전 기록
+- 저장 공간 확인, SQLite 수동 백업, Markdown·JSON 가져오기/내보내기
+- API 연결이 끊겨도 유지되는 브라우저 임시 저장과 재연결 복구
+- 모바일 하단 탐색과 화면 하단 고정 편집 툴바
 
 ```bash
 npm install

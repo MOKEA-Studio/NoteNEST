@@ -4,6 +4,7 @@ import {
   Folder,
   FolderPlus,
   Home,
+  LayoutTemplate,
   Menu,
   Plus,
   Search,
@@ -11,6 +12,7 @@ import {
   Sprout,
   Star,
   Tags,
+  Trash2,
   X,
 } from "lucide-react";
 import PageGlyph from "./PageGlyph";
@@ -53,6 +55,7 @@ export default function Sidebar({
   onOpenFolder,
   onOpenSettings,
   onClose,
+  connected,
 }) {
   const searchRef = useRef(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -101,10 +104,15 @@ export default function Sidebar({
           </button>
         </div>
 
-        <button className="new-page-button" type="button" onClick={() => onCreate()}>
-          <Plus aria-hidden="true" size={18} />
-          새 페이지
-        </button>
+        <div className="new-page-actions">
+          <button className="new-page-button" type="button" onClick={() => onCreate()}>
+            <Plus aria-hidden="true" size={18} />
+            새 페이지
+          </button>
+          <button className="template-page-button" type="button" aria-label="템플릿 갤러리" title="템플릿 갤러리" onClick={() => onNavigate("templates")}>
+            <LayoutTemplate aria-hidden="true" size={18} />
+          </button>
+        </div>
 
         <label className="search-field">
           <Search aria-hidden="true" size={17} />
@@ -176,6 +184,10 @@ export default function Sidebar({
               </div>
             </section>
           )}
+          <button className={`sidebar-trash ${view === "trash" ? "is-active" : ""}`} type="button" aria-current={view === "trash" ? "page" : undefined} onClick={() => onNavigate("trash")}>
+            <Trash2 size={17} />
+            휴지통
+          </button>
         </div>
 
         <div className="sidebar-footer">
@@ -183,7 +195,7 @@ export default function Sidebar({
             <Settings aria-hidden="true" size={17} />
             설정
           </button>
-          <span className="local-status"><span aria-hidden="true" /> 로컬 저장</span>
+          <span className={`local-status ${connected ? "" : "is-offline"}`}><span aria-hidden="true" /> {connected ? "로컬 저장소 연결됨" : "임시 저장 중"}</span>
         </div>
       </aside>
       {open && <button className="sidebar-backdrop" type="button" aria-label="사이드바 닫기" onClick={onClose} />}

@@ -50,6 +50,39 @@ export const settingsApi = {
   },
 };
 
+export const trashApi = {
+  list(query = "") {
+    return request(`/trash${query ? `?q=${encodeURIComponent(query)}` : ""}`);
+  },
+  restore(id) {
+    return request(`/trash/${id}/restore`, { method: "POST" });
+  },
+  remove(id) {
+    return request(`/trash/${id}`, { method: "DELETE" });
+  },
+  empty() {
+    return request("/trash", { method: "DELETE" });
+  },
+};
+
+export const versionsApi = {
+  list(pageId) {
+    return request(`/pages/${pageId}/versions`);
+  },
+  restore(pageId, versionId) {
+    return request(`/pages/${pageId}/versions/${versionId}/restore`, { method: "POST" });
+  },
+};
+
+export const storageApi = {
+  get() {
+    return request("/storage");
+  },
+  backup() {
+    return request("/backups", { method: "POST" });
+  },
+};
+
 export const uploadsApi = {
   upload(file, kind = "image") {
     const formData = new FormData();
