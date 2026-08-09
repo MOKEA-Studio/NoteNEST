@@ -45,6 +45,7 @@ export default function TagsPage({
   onRenameTag,
   onDeleteTag,
   onSetTagColor,
+  onOpenPageMenu,
   tagColors = {},
   onOpenSidebar,
 }) {
@@ -182,7 +183,7 @@ export default function TagsPage({
               </div>
               <div className="tagged-notes">
                 {taggedPages.map((page) => (
-                  <button key={page.id} className="tagged-note" type="button" onClick={() => onSelect(page)}>
+                  <button key={page.id} className="tagged-note" type="button" onClick={() => onSelect(page)} onContextMenu={(event) => onOpenPageMenu(event, page)}>
                     <PageGlyph page={page} size={21} />
                     <span><strong>{pageTitle(page)}</strong><small>{page.folder || "미분류"}</small><p>{pageExcerpt(page, 170)}</p></span>
                     <time dateTime={page.updatedAt}>{formatShortDate(page.updatedAt)}</time>

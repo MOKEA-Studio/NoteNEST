@@ -32,7 +32,7 @@ function matches(page, keyword, filter) {
   return includes(page.title) || includes(page.content) || includes(page.folder) || page.tags?.some(includes);
 }
 
-export default function SearchPage({ query, pages, onQueryChange, onSelect, onOpenSidebar }) {
+export default function SearchPage({ query, pages, onQueryChange, onSelect, onOpenPageMenu, onOpenSidebar }) {
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("newest");
   const [dateRange, setDateRange] = useState("all");
@@ -91,7 +91,7 @@ export default function SearchPage({ query, pages, onQueryChange, onSelect, onOp
           {results.length === 0 ? (
             <div className="collection-empty"><Search size={30} /><h2>일치하는 노트가 없습니다</h2></div>
           ) : results.map((page) => (
-            <button key={page.id} className="search-result" type="button" onClick={() => onSelect(page)}>
+            <button key={page.id} className="search-result" type="button" onClick={() => onSelect(page)} onContextMenu={(event) => onOpenPageMenu(event, page)}>
               <PageGlyph page={page} size={21} />
               <span className="search-result-copy">
                 <span className="search-result-title"><Highlight text={pageTitle(page)} query={query} /></span>

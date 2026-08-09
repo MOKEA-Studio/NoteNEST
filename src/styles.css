@@ -1472,6 +1472,63 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+.sidebar-page-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.sidebar-page-shell .sidebar-page {
+  padding-right: 35px;
+}
+
+.sidebar-page-shell:hover .sidebar-page {
+  color: var(--accent-strong);
+  background: var(--sidebar-strong);
+}
+
+.sidebar-page-menu-button {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 3px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  cursor: pointer;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xs);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.84);
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-base) var(--ease-out);
+}
+
+.sidebar-page-shell:hover .sidebar-page-menu-button,
+.sidebar-page-shell:focus-within .sidebar-page-menu-button,
+.sidebar-page-shell.is-active .sidebar-page-menu-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.sidebar-page-menu-button:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+.sidebar-page-menu-button:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
 .sidebar-empty-copy {
   margin: 7px 10px 0;
   color: #969c95;
@@ -2856,6 +2913,160 @@ textarea:focus-visible {
   place-items: center;
   background: rgba(27, 33, 29, 0.34);
   backdrop-filter: blur(2px);
+}
+
+.page-context-menu {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  width: 238px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+  animation: popover-in 180ms var(--ease-out) both;
+  transform-origin: top left;
+}
+
+.page-context-heading {
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  padding: 7px 8px 9px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-context-heading > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.page-context-heading strong,
+.page-context-heading small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-context-heading strong {
+  font-size: 12px;
+}
+
+.page-context-heading small {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.page-context-heading > svg:last-child {
+  color: var(--accent);
+}
+
+.page-context-menu > button {
+  display: grid;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 9px;
+  cursor: pointer;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+}
+
+.page-context-menu > button:hover:not(:disabled),
+.page-context-menu > button:focus-visible {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.page-context-menu > button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.page-context-menu > button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.page-context-menu > button.is-danger {
+  color: var(--danger);
+}
+
+.page-context-menu > button.is-danger:hover:not(:disabled),
+.page-context-menu > button.is-danger:focus-visible {
+  color: var(--danger);
+  background: var(--coral-soft);
+}
+
+.page-context-separator {
+  height: 7px;
+  margin: 2px 4px;
+  border-top: 1px solid var(--line);
+}
+
+.page-context-rename {
+  display: grid;
+  padding: 10px 8px 7px;
+  gap: 8px;
+}
+
+.page-context-rename label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.page-context-rename input {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: 0;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.page-context-rename > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.page-context-rename button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.page-context-rename button[type="submit"] {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.page-context-rename button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .confirm-dialog {
@@ -6081,6 +6292,10 @@ html[data-theme="dark"] .date-popover {
   font-size: 11.5px;
 }
 
+.sidebar-page-shell .sidebar-page.is-nested {
+  padding-right: 32px;
+}
+
 .sidebar-page.is-nested .page-glyph {
   color: var(--faint);
   transform: scale(0.92);
@@ -6100,14 +6315,14 @@ html[data-theme="dark"] .date-popover {
   background: var(--accent-soft);
 }
 
-.folder-tree-item.is-expanded .sidebar-page.is-nested {
+.folder-tree-item.is-expanded .sidebar-page-shell.is-nested {
   animation: folder-page-in 260ms var(--ease-out) backwards;
 }
 
-.folder-tree-item.is-expanded .sidebar-page.is-nested:nth-child(2) { animation-delay: 32ms; }
-.folder-tree-item.is-expanded .sidebar-page.is-nested:nth-child(3) { animation-delay: 64ms; }
-.folder-tree-item.is-expanded .sidebar-page.is-nested:nth-child(4) { animation-delay: 96ms; }
-.folder-tree-item.is-expanded .sidebar-page.is-nested:nth-child(n + 5) { animation-delay: 128ms; }
+.folder-tree-item.is-expanded .sidebar-page-shell.is-nested:nth-child(2) { animation-delay: 32ms; }
+.folder-tree-item.is-expanded .sidebar-page-shell.is-nested:nth-child(3) { animation-delay: 64ms; }
+.folder-tree-item.is-expanded .sidebar-page-shell.is-nested:nth-child(4) { animation-delay: 96ms; }
+.folder-tree-item.is-expanded .sidebar-page-shell.is-nested:nth-child(n + 5) { animation-delay: 128ms; }
 
 html[data-theme="dark"] .folder-tree-heading .folder-row:hover {
   border-color: var(--line-strong);
@@ -6142,7 +6357,8 @@ html[data-theme="dark"] .folder-add-page {
 }
 
 @media (hover: none) {
-  .folder-add-page {
+  .folder-add-page,
+  .sidebar-page-menu-button {
     opacity: 0.72;
     pointer-events: auto;
     transform: translateY(-50%) scale(1);

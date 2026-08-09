@@ -8,6 +8,7 @@ import {
   Home,
   LayoutTemplate,
   Menu,
+  MoreHorizontal,
   Plus,
   Search,
   Settings,
@@ -27,18 +28,30 @@ const navigation = [
   { id: "tags", label: "태그", icon: Tags },
 ];
 
-function SidebarPage({ page, active, nested = false, tabIndex, onSelect }) {
+function SidebarPage({ page, active, nested = false, tabIndex, onSelect, onOpenMenu }) {
+  function handleKeyDown(event) {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    event.preventDefault();
+    onOpenMenu(event, page);
+  }
+
   return (
-    <button
-      className={`sidebar-page ${nested ? "is-nested" : ""} ${active ? "is-active" : ""}`}
-      type="button"
-      aria-current={active ? "page" : undefined}
-      tabIndex={tabIndex}
-      onClick={() => onSelect(page)}
-    >
-      <PageGlyph page={page} size={15} />
-      <span>{pageTitle(page)}</span>
-    </button>
+    <div className={`sidebar-page-shell ${nested ? "is-nested" : ""} ${active ? "is-active" : ""}`} onContextMenu={(event) => onOpenMenu(event, page)}>
+      <button
+        className={`sidebar-page ${nested ? "is-nested" : ""} ${active ? "is-active" : ""}`}
+        type="button"
+        aria-current={active ? "page" : undefined}
+        tabIndex={tabIndex}
+        onClick={() => onSelect(page)}
+        onKeyDown={handleKeyDown}
+      >
+        <PageGlyph page={page} size={15} />
+        <span>{pageTitle(page)}</span>
+      </button>
+      <button className="sidebar-page-menu-button" type="button" tabIndex={tabIndex} aria-label={`${pageTitle(page)} 메뉴`} title="페이지 메뉴" onClick={(event) => onOpenMenu(event, page)}>
+        <MoreHorizontal size={15} />
+      </button>
+    </div>
   );
 }
 
@@ -53,6 +66,7 @@ export default function Sidebar({
   onCreate,
   onCreateFolder,
   onSelect,
+  onOpenPageMenu,
   onNavigate,
   onOpenSettings,
   onClose,
@@ -213,6 +227,7 @@ export default function Sidebar({
                             nested
                             tabIndex={expanded ? 0 : -1}
                             onSelect={onSelect}
+                            onOpenMenu={onOpenPageMenu}
                           />
                         ))}
                       </div>
@@ -237,7 +252,7 @@ export default function Sidebar({
               <div className="sidebar-section-heading"><h2 id="recent-title">최근 페이지</h2></div>
               <div className="sidebar-pages">
                 {recentPages.map((page) => (
-                  <SidebarPage key={page.id} page={page} active={view === "editor" && selectedId === page.id} onSelect={onSelect} />
+                  <SidebarPage key={page.id} page={page} active={view === "editor" && selectedId === page.id} onSelect={onSelect} onOpenMenu={onOpenPageMenu} />
                 ))}
               </div>
             </section>

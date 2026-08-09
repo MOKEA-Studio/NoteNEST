@@ -4,6 +4,7 @@ import { pagesApi, settingsApi, trashApi, versionsApi } from "./api";
 import ConfirmDialog from "./components/ConfirmDialog";
 import EmptyState from "./components/EmptyState";
 import LibraryPage from "./components/LibraryPage";
+import PageContextMenu from "./components/PageContextMenu";
 import SearchPage from "./components/SearchPage";
 import SettingsPage from "./components/SettingsPage";
 import Sidebar from "./components/Sidebar";
@@ -12,7 +13,7 @@ import TemplateGallery from "./components/TemplateGallery";
 import TrashPage from "./components/TrashPage";
 import MobileBottomNav from "./components/MobileBottomNav";
 import { templatePlainText } from "./templates";
-import { normalizeTags, tagTone } from "./utils";
+import { normalizeTags, pageTitle, tagTone } from "./utils";
 
 const Editor = lazy(() => import("./components/Editor"));
 
@@ -105,6 +106,7 @@ export default function App() {
   const [trashPages, setTrashPages] = useState([]);
   const [trashLoading, setTrashLoading] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [pageMenu, setPageMenu] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [connected, setConnected] = useState(true);
   const [recoveredDraft, setRecoveredDraft] = useState(false);
@@ -116,6 +118,20 @@ export default function App() {
   const saveQueueRef = useRef(Promise.resolve());
 
   draftRef.current = draft;
+
+  const closePageMenu = useCallback(() => setPageMenu(null), []);
+  const handleOpenPageMenu = useCallback((event, page) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fromPointer = event.type === "contextmenu" && (event.clientX !== 0 || event.clientY !== 0);
+    setPageMenu({
+      page,
+      pageId: page.id,
+      x: fromPointer ? event.clientX : rect.right + 5,
+      y: fromPointer ? event.clientY : rect.bottom + 4,
+    });
+  }, []);
 
   function queuePageSave(page) {
     const operation = saveQueueRef.current
@@ -407,9 +423,71 @@ export default function App() {
     }
   }
 
+  async function handleRenamePage(page, title) {
+    const current = page.id === draft?.id ? draft : pages.find((item) => item.id === page.id) ?? page;
+    if (current.id === draft?.id) {
+      handleDraftChange({ title });
+      return;
+    }
+    try {
+      const saved = await pagesApi.update(current.id, { title });
+      replaceSavedPages([saved]);
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleTogglePageFavorite(page) {
+    const current = page.id === draft?.id ? draft : pages.find((item) => item.id === page.id) ?? page;
+    if (current.id === draft?.id) {
+      handleDraftChange({ favorite: !current.favorite });
+      return;
+    }
+    try {
+      const saved = await pagesApi.update(current.id, { favorite: !current.favorite });
+      replaceSavedPages([saved]);
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleDuplicatePage(page) {
+    const source = page.id === draft?.id ? draft : pages.find((item) => item.id === page.id) ?? page;
+    if (!(await flushDraft())) return;
+    try {
+      const created = await pagesApi.create();
+      const duplicate = await pagesApi.update(created.id, {
+        ...pageChanges(source),
+        title: `${pageTitle(source)} 복사본`,
+        favorite: false,
+      });
+      setPages((current) => sortByUpdatedAt([duplicate, ...current]));
+      setDraft(duplicate);
+      lastSavedRef.current = pageSignature(duplicate);
+      setSaveState("saved");
+      setRecoveredDraft(false);
+      setQuery("");
+      setView("editor");
+      setSidebarOpen(false);
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleRequestDeletePage(page) {
+    if (!page) return;
+    if (page.id === draft?.id && !(await flushDraft())) return;
+    setDeleteCandidate(page);
+  }
+
   async function handleDelete() {
-    if (!draft || !(await flushDraft())) return;
-    setDeleteCandidate(draft);
+    await handleRequestDeletePage(draft);
   }
 
   async function confirmDelete() {
@@ -419,13 +497,15 @@ export default function App() {
       await pagesApi.remove(deleteCandidate.id);
       clearPendingDraft(deleteCandidate.id);
       const remaining = pages.filter((page) => page.id !== deleteCandidate.id);
-      const nextPage = remaining[0] ?? null;
       setPages(remaining);
-      setDraft(nextPage);
-      lastSavedRef.current = nextPage ? pageSignature(nextPage) : "";
-      setSaveState("saved");
-      setRecoveredDraft(false);
-      if (!nextPage) setView("editor");
+      if (draft?.id === deleteCandidate.id) {
+        const nextPage = remaining[0] ?? null;
+        setDraft(nextPage);
+        lastSavedRef.current = nextPage ? pageSignature(nextPage) : "";
+        setSaveState("saved");
+        setRecoveredDraft(false);
+        if (!nextPage) setView("editor");
+      }
       setDeleteCandidate(null);
     } catch (requestError) {
       setError(requestError.message);
@@ -625,6 +705,9 @@ export default function App() {
 
   const showRecovery = Boolean(draft) && (!connected || recoveredDraft || saveState === "offline");
   const showMobileTabs = ["all", "favorites", "tags", "search", "trash", "settings"].includes(view) || (view === "editor" && !draft);
+  const contextMenuPage = pageMenu
+    ? (draft?.id === pageMenu.pageId ? draft : pages.find((page) => page.id === pageMenu.pageId) ?? pageMenu.page)
+    : null;
 
   return (
     <div className={`app-shell ${showRecovery ? "has-recovery-banner" : ""} ${showMobileTabs ? "has-mobile-tabs" : ""}`} data-view={view}>
@@ -639,6 +722,7 @@ export default function App() {
         onCreate={handleCreate}
         onCreateFolder={handleCreateFolder}
         onSelect={handleSelect}
+        onOpenPageMenu={handleOpenPageMenu}
         onNavigate={handleNavigate}
         onOpenSettings={handleOpenSettings}
         onClose={() => setSidebarOpen(false)}
@@ -664,7 +748,7 @@ export default function App() {
       {view === "settings" ? (
         <SettingsPage settings={settings} pages={pages} currentPage={draft} onSave={handleSaveSettings} onImport={handleImportPages} onBack={() => setView("editor")} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : view === "search" ? (
-        <SearchPage query={query} pages={pages} onQueryChange={handleSearchChange} onSelect={handleSelect} onOpenSidebar={() => setSidebarOpen(true)} />
+        <SearchPage query={query} pages={pages} onQueryChange={handleSearchChange} onSelect={handleSelect} onOpenPageMenu={handleOpenPageMenu} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : view === "all" || view === "favorites" ? (
         <LibraryPage
           key={view}
@@ -675,6 +759,7 @@ export default function App() {
           onSelect={handleSelect}
           onCreate={handleCreate}
           onUpdatePage={handleUpdatePage}
+          onOpenPageMenu={handleOpenPageMenu}
           tagColors={settings.tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
@@ -689,6 +774,7 @@ export default function App() {
           onRenameTag={handleRenameTag}
           onDeleteTag={handleDeleteTag}
           onSetTagColor={handleSetTagColor}
+          onOpenPageMenu={handleOpenPageMenu}
           tagColors={settings.tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
@@ -710,6 +796,15 @@ export default function App() {
       ) : (
         <EmptyState hasPages={hasPages} onCreate={handleCreate} onCreateTemplate={() => setView("templates")} onOpenSidebar={() => setSidebarOpen(true)} />
       )}
+      <PageContextMenu
+        page={contextMenuPage}
+        position={pageMenu}
+        onClose={closePageMenu}
+        onRename={handleRenamePage}
+        onToggleFavorite={handleTogglePageFavorite}
+        onDuplicate={handleDuplicatePage}
+        onDelete={handleRequestDeletePage}
+      />
       <ConfirmDialog
         open={Boolean(deleteCandidate)}
         title="페이지를 휴지통으로 이동할까요?"

@@ -23,9 +23,9 @@ import {
   tagTone,
 } from "../utils";
 
-function NoteTableRow({ page, active, tagColors, onInspect, onOpen }) {
+function NoteTableRow({ page, active, tagColors, onInspect, onOpen, onOpenMenu }) {
   return (
-    <div className={`note-table-row ${active ? "is-active" : ""}`}>
+    <div className={`note-table-row ${active ? "is-active" : ""}`} onContextMenu={(event) => onOpenMenu(event, page)}>
       <button className="note-title-cell" type="button" onClick={() => onInspect(page.id)} onDoubleClick={() => onOpen(page)}>
         <PageGlyph page={page} size={17} />
         <span>{pageTitle(page)}</span>
@@ -42,9 +42,9 @@ function NoteTableRow({ page, active, tagColors, onInspect, onOpen }) {
   );
 }
 
-function NoteCard({ page, active, onInspect, onOpen }) {
+function NoteCard({ page, active, onInspect, onOpen, onOpenMenu }) {
   return (
-    <article className={`note-card ${active ? "is-active" : ""}`}>
+    <article className={`note-card ${active ? "is-active" : ""}`} onContextMenu={(event) => onOpenMenu(event, page)}>
       <button className="note-card-main" type="button" onClick={() => onInspect(page.id)} onDoubleClick={() => onOpen(page)}>
         <PageGlyph page={page} size={20} />
         <strong>{pageTitle(page)}</strong>
@@ -67,6 +67,7 @@ export default function LibraryPage({
   onSelect,
   onCreate,
   onUpdatePage,
+  onOpenPageMenu,
   tagColors = {},
   onOpenSidebar,
 }) {
@@ -160,14 +161,14 @@ export default function LibraryPage({
               </div>
               <div className="note-table-body">
                 {visiblePages.map((page) => (
-                  <NoteTableRow key={page.id} page={page} active={page.id === inspectedId} tagColors={tagColors} onInspect={setInspectedId} onOpen={onSelect} />
+                  <NoteTableRow key={page.id} page={page} active={page.id === inspectedId} tagColors={tagColors} onInspect={setInspectedId} onOpen={onSelect} onOpenMenu={onOpenPageMenu} />
                 ))}
               </div>
             </div>
           ) : (
             <div className="note-grid">
               {visiblePages.map((page) => (
-                <NoteCard key={page.id} page={page} active={page.id === inspectedId} onInspect={setInspectedId} onOpen={onSelect} />
+                <NoteCard key={page.id} page={page} active={page.id === inspectedId} onInspect={setInspectedId} onOpen={onSelect} onOpenMenu={onOpenPageMenu} />
               ))}
             </div>
           )}
