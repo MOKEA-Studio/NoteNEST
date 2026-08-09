@@ -34,7 +34,7 @@ function formatDate(value) {
 function SaveStatus({ state }) {
   if (state === "saving") {
     return (
-      <span className="save-state">
+      <span className="save-state is-saving" role="status" aria-live="polite">
         <LoaderCircle className="spin" aria-hidden="true" size={14} />
         <span>저장 중</span>
       </span>
@@ -42,7 +42,7 @@ function SaveStatus({ state }) {
   }
   if (state === "offline") {
     return (
-      <span className="save-state is-offline">
+      <span className="save-state is-offline" role="status" aria-live="polite">
         <CloudOff aria-hidden="true" size={14} />
         <span>기기에 임시 저장</span>
       </span>
@@ -50,14 +50,14 @@ function SaveStatus({ state }) {
   }
   if (state === "error") {
     return (
-      <span className="save-state is-error">
+      <span className="save-state is-error" role="status" aria-live="polite">
         <AlertCircle aria-hidden="true" size={14} />
         <span>저장 실패</span>
       </span>
     );
   }
   return (
-    <span className="save-state">
+    <span className="save-state is-saved" role="status" aria-live="polite">
       <Check aria-hidden="true" size={14} />
       <span>저장됨</span>
     </span>

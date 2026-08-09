@@ -76,7 +76,7 @@ export default function TemplateGallery({ onCreate, onCancel, onOpenSidebar }) {
         </section>
         <aside className="template-preview" aria-label="템플릿 미리보기">
           <span>미리보기</span>
-          <div className="template-preview-page"><FileText size={28} /><h2>{selected.pageTitle}</h2><TemplateSketch type={selected.id} /></div>
+          <div key={selected.id} className="template-preview-page"><FileText size={28} /><h2>{selected.pageTitle}</h2><TemplateSketch type={selected.id} /></div>
           <button className="primary-button" type="button" disabled={creating} onClick={createSelected}>{creating ? "만드는 중" : "이 템플릿으로 만들기"}</button>
           <button className="empty-secondary" type="button" onClick={onCancel}>취소</button>
         </aside>

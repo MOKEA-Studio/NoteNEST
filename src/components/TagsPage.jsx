@@ -114,7 +114,7 @@ export default function TagsPage({
           {!visibleTags.length && !adding && <div className="tag-index-empty">표시할 태그가 없습니다.</div>}
         </section>
 
-        <section className="tag-detail" aria-label={selectedTag ? `${selectedTag} 태그 노트` : "태그 노트"}>
+        <section key={selectedTag || "empty"} className="tag-detail" aria-label={selectedTag ? `${selectedTag} 태그 노트` : "태그 노트"}>
           {selectedTag ? (
             <>
               <div className="tag-detail-heading">

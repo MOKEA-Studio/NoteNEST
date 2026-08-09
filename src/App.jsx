@@ -598,7 +598,7 @@ export default function App() {
   const showMobileTabs = ["all", "favorites", "tags", "search", "trash", "settings"].includes(view) || (view === "editor" && !draft);
 
   return (
-    <div className={`app-shell ${showRecovery ? "has-recovery-banner" : ""} ${showMobileTabs ? "has-mobile-tabs" : ""}`}>
+    <div className={`app-shell ${showRecovery ? "has-recovery-banner" : ""} ${showMobileTabs ? "has-mobile-tabs" : ""}`} data-view={view}>
       <Sidebar
         open={sidebarOpen}
         pages={pages}
@@ -640,6 +640,7 @@ export default function App() {
         <SearchPage query={query} pages={pages} onQueryChange={handleSearchChange} onSelect={handleSelect} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : view === "all" || view === "favorites" ? (
         <LibraryPage
+          key={`${view}-${folderFilter}`}
           title={view === "favorites" ? "즐겨찾기" : "모든 노트"}
           pages={view === "favorites" ? favoritePages : pages}
           allFolders={folders}
@@ -675,7 +676,7 @@ export default function App() {
         <TemplateGallery onCreate={handleCreateFromTemplate} onCancel={() => setView("editor")} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : draft ? (
         <Suspense fallback={<main className="editor-shell"><div className="editor-loading">편집기를 준비하는 중...</div></main>}>
-          <Editor page={draft} folders={folders} saveState={saveState} settings={settings} onChange={handleDraftChange} onDelete={handleDelete} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
+          <Editor key={draft.id} page={draft} folders={folders} saveState={saveState} settings={settings} onChange={handleDraftChange} onDelete={handleDelete} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
         </Suspense>
       ) : (
         <EmptyState hasPages={hasPages} onCreate={handleCreate} onCreateTemplate={() => setView("templates")} onOpenSidebar={() => setSidebarOpen(true)} />
