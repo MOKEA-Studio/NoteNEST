@@ -242,6 +242,7 @@ func (a *api) updateSettings(w http.ResponseWriter, r *http.Request) {
 	if settings.CustomFonts == nil {
 		settings.CustomFonts = make([]FontAsset, 0)
 	}
+	settings.TagColors = sanitizeTagColors(settings.TagColors)
 	saved, err := a.store.saveSettings(r.Context(), settings)
 	if err != nil {
 		writeError(w, err)

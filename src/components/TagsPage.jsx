@@ -1,8 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
-import { MoreVertical, Pencil, Plus, Search, Tag, Trash2, X } from "lucide-react";
+import { Check, MoreVertical, Palette, Pencil, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import { MobileMenuButton } from "./Sidebar";
 import PageGlyph from "./PageGlyph";
-import { formatShortDate, pageExcerpt, pageTitle, tagTone } from "../utils";
+import { formatShortDate, pageExcerpt, pageTitle, tagTone, tagTones } from "../utils";
+
+const toneNames = {
+  green: "초록",
+  gold: "노랑",
+  coral: "코랄",
+  cyan: "청록",
+  olive: "올리브",
+  indigo: "남색",
+};
+
+function TagColorPicker({ value, label, disabled = false, onChange }) {
+  return (
+    <div className="tag-color-picker" role="group" aria-label={label}>
+      {tagTones.map((tone) => (
+        <button
+          key={tone}
+          className={`tag-color-option tone-${tone} ${value === tone ? "is-selected" : ""}`}
+          type="button"
+          aria-label={`${label}: ${toneNames[tone]}`}
+          aria-pressed={value === tone}
+          title={toneNames[tone]}
+          disabled={disabled}
+          onClick={() => onChange(tone)}
+        >
+          <span className="tag-color-dot" aria-hidden="true" />
+          {value === tone && <Check size={11} strokeWidth={3} aria-hidden="true" />}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function TagsPage({
   pages,
@@ -13,16 +44,20 @@ export default function TagsPage({
   onAddTag,
   onRenameTag,
   onDeleteTag,
+  onSetTagColor,
+  tagColors = {},
   onOpenSidebar,
 }) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [newTag, setNewTag] = useState("");
+  const [newTone, setNewTone] = useState(tagTones[0]);
   const [targetPageId, setTargetPageId] = useState(selectedId || pages[0]?.id || "");
   const [saving, setSaving] = useState(false);
   const [renamingTag, setRenamingTag] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
+  const [colorSaving, setColorSaving] = useState(false);
 
   const tags = useMemo(() => {
     const counts = new Map();
@@ -50,9 +85,10 @@ export default function TagsPage({
     if (!name || !targetPageId) return;
     setSaving(true);
     try {
-      await onAddTag(name, targetPageId);
+      await onAddTag(name, targetPageId, newTone);
       onSelectTag(name);
       setNewTag("");
+      setNewTone(tagTones[0]);
       setAdding(false);
     } finally {
       setSaving(false);
@@ -83,6 +119,18 @@ export default function TagsPage({
     }
   }
 
+  async function changeSelectedColor(tone) {
+    if (!selectedTag || tone === tagTone(selectedTag, tagColors)) return;
+    setColorSaving(true);
+    try {
+      await onSetTagColor(selectedTag, tone);
+    } catch {
+      // The workspace-level error banner reports the failed settings request.
+    } finally {
+      setColorSaving(false);
+    }
+  }
+
   return (
     <main className="workspace-shell tag-shell">
       <header className="workspace-header">
@@ -99,7 +147,7 @@ export default function TagsPage({
           <div className="tag-index-list">
             {visibleTags.map(([tag, count]) => (
               <div key={tag} className={`tag-index-row ${selectedTag === tag ? "is-active" : ""}`}>
-                <button type="button" onClick={() => onSelectTag(tag)}><span className={`tag-swatch tone-${tagTone(tag)}`} /><span>{tag}</span><small>{count}</small></button>
+                <button type="button" onClick={() => onSelectTag(tag)}><span className={`tag-swatch tone-${tagTone(tag, tagColors)}`} /><span>{tag}</span><small>{count}</small></button>
                 <button type="button" aria-label={`${tag} 이름 변경`} title="태그 이름 변경" onClick={() => beginRename(tag)}><MoreVertical size={16} /></button>
               </div>
             ))}
@@ -108,7 +156,8 @@ export default function TagsPage({
             <form className="new-tag-form" onSubmit={submitTag}>
               <label><span className="sr-only">새 태그 이름</span><input autoFocus value={newTag} placeholder="태그 이름" onChange={(event) => setNewTag(event.target.value)} /></label>
               <label><span className="sr-only">태그를 추가할 페이지</span><select value={targetPageId} onChange={(event) => setTargetPageId(event.target.value)}>{pages.map((page) => <option key={page.id} value={page.id}>{pageTitle(page)}</option>)}</select></label>
-              <div><button className="primary-button" type="submit" disabled={saving || !pages.length}>{saving ? "저장 중" : "저장"}</button><button className="plain-button" type="button" onClick={() => setAdding(false)}>취소</button></div>
+              <fieldset className="new-tag-color-field"><legend>색상</legend><TagColorPicker value={newTone} label="새 태그 색상" disabled={saving} onChange={setNewTone} /></fieldset>
+              <div className="new-tag-actions"><button className="primary-button" type="submit" disabled={saving || !pages.length}>{saving ? "저장 중" : "저장"}</button><button className="plain-button" type="button" onClick={() => setAdding(false)}>취소</button></div>
             </form>
           )}
           {!visibleTags.length && !adding && <div className="tag-index-empty">표시할 태그가 없습니다.</div>}
@@ -118,7 +167,7 @@ export default function TagsPage({
           {selectedTag ? (
             <>
               <div className="tag-detail-heading">
-                <div><span className={`tag-swatch large tone-${tagTone(selectedTag)}`} /><div>{renamingTag === selectedTag ? (
+                <div><span className={`tag-swatch large tone-${tagTone(selectedTag, tagColors)}`} /><div>{renamingTag === selectedTag ? (
                   <form className="tag-rename-form" onSubmit={submitRename}>
                     <label><span className="sr-only">태그 이름 변경</span><input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} /></label>
                     <button type="submit" disabled={renameSaving}>{renameSaving ? "저장 중" : "저장"}</button>
@@ -126,6 +175,10 @@ export default function TagsPage({
                   </form>
                 ) : <h2>{selectedTag}</h2>}<p>이 태그가 포함된 노트 {taggedPages.length}개</p></div></div>
                 <div className="tag-detail-actions"><button type="button" aria-label="태그 이름 변경" title="태그 이름 변경" onClick={() => beginRename(selectedTag)}><Pencil size={17} /></button><button className="danger-icon" type="button" aria-label="태그 삭제" title="태그 삭제" onClick={() => onDeleteTag(selectedTag)}><Trash2 size={17} /></button></div>
+              </div>
+              <div className="tag-color-bar">
+                <div className="tag-color-label"><Palette size={16} aria-hidden="true" /><span>태그 색상</span>{colorSaving && <small role="status">저장 중</small>}</div>
+                <TagColorPicker value={tagTone(selectedTag, tagColors)} label={`${selectedTag} 태그 색상`} disabled={colorSaving} onChange={changeSelectedColor} />
               </div>
               <div className="tagged-notes">
                 {taggedPages.map((page) => (

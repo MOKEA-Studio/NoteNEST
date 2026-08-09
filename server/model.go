@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -39,13 +40,14 @@ type FontAsset struct {
 }
 
 type AppSettings struct {
-	FontFamily   string      `json:"fontFamily"`
-	FontSize     int         `json:"fontSize"`
-	EditorWidth  string      `json:"editorWidth"`
-	Theme        string      `json:"theme"`
-	LineSpacing  string      `json:"lineSpacing"`
-	ReduceMotion bool        `json:"reduceMotion"`
-	CustomFonts  []FontAsset `json:"customFonts"`
+	FontFamily   string            `json:"fontFamily"`
+	FontSize     int               `json:"fontSize"`
+	EditorWidth  string            `json:"editorWidth"`
+	Theme        string            `json:"theme"`
+	LineSpacing  string            `json:"lineSpacing"`
+	ReduceMotion bool              `json:"reduceMotion"`
+	CustomFonts  []FontAsset       `json:"customFonts"`
+	TagColors    map[string]string `json:"tagColors"`
 }
 
 func defaultSettings() AppSettings {
@@ -56,7 +58,32 @@ func defaultSettings() AppSettings {
 		Theme:       "system",
 		LineSpacing: "comfortable",
 		CustomFonts: make([]FontAsset, 0),
+		TagColors:   make(map[string]string),
 	}
+}
+
+var supportedTagTones = map[string]struct{}{
+	"green":  {},
+	"gold":   {},
+	"coral":  {},
+	"cyan":   {},
+	"olive":  {},
+	"indigo": {},
+}
+
+func sanitizeTagColors(colors map[string]string) map[string]string {
+	sanitized := make(map[string]string, len(colors))
+	for tag, tone := range colors {
+		name := strings.TrimSpace(tag)
+		if name == "" {
+			continue
+		}
+		if _, supported := supportedTagTones[tone]; !supported {
+			continue
+		}
+		sanitized[name] = tone
+	}
+	return sanitized
 }
 
 type PageVersion struct {

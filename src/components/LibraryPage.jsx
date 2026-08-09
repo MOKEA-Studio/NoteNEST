@@ -23,7 +23,7 @@ import {
   tagTone,
 } from "../utils";
 
-function NoteTableRow({ page, active, onInspect, onOpen }) {
+function NoteTableRow({ page, active, tagColors, onInspect, onOpen }) {
   return (
     <div className={`note-table-row ${active ? "is-active" : ""}`}>
       <button className="note-title-cell" type="button" onClick={() => onInspect(page.id)} onDoubleClick={() => onOpen(page)}>
@@ -32,7 +32,7 @@ function NoteTableRow({ page, active, onInspect, onOpen }) {
       </button>
       <span className="note-folder-cell"><Folder size={15} /> {page.folder || "미분류"}</span>
       <span className="note-tag-cell">
-        {page.tags?.[0] ? <span className={`tag-chip tone-${tagTone(page.tags[0])}`}><Tag size={13} />{page.tags[0]}</span> : <span className="empty-cell">-</span>}
+        {page.tags?.[0] ? <span className={`tag-chip tone-${tagTone(page.tags[0], tagColors)}`}><Tag size={13} />{page.tags[0]}</span> : <span className="empty-cell">-</span>}
       </span>
       <span className="note-date-cell">{formatRelativeDate(page.updatedAt)}</span>
       <button className="row-action" type="button" aria-label={`${pageTitle(page)} 열기`} title="페이지 열기" onClick={() => onOpen(page)}>
@@ -67,6 +67,7 @@ export default function LibraryPage({
   onSelect,
   onCreate,
   onUpdatePage,
+  tagColors = {},
   onOpenSidebar,
 }) {
   const [query, setQuery] = useState("");
@@ -159,7 +160,7 @@ export default function LibraryPage({
               </div>
               <div className="note-table-body">
                 {visiblePages.map((page) => (
-                  <NoteTableRow key={page.id} page={page} active={page.id === inspectedId} onInspect={setInspectedId} onOpen={onSelect} />
+                  <NoteTableRow key={page.id} page={page} active={page.id === inspectedId} tagColors={tagColors} onInspect={setInspectedId} onOpen={onSelect} />
                 ))}
               </div>
             </div>
@@ -181,7 +182,7 @@ export default function LibraryPage({
             <div className="inspector-title"><PageGlyph page={inspectedPage} size={20} /><strong>{pageTitle(inspectedPage)}</strong></div>
             <dl className="inspector-properties">
               <div><dt>폴더</dt><dd><label className="inspector-folder"><Folder size={15} /><select value={inspectedPage.folder || ""} onChange={(event) => onUpdatePage(inspectedPage, { folder: event.target.value })}>{[...new Set([inspectedPage.folder, ...allFolders].filter(Boolean))].map((folder) => <option key={folder} value={folder}>{folder}</option>)}</select></label></dd></div>
-              <div><dt>태그</dt><dd>{inspectedPage.tags?.length ? inspectedPage.tags.map((tag) => <span key={tag} className={`tag-chip tone-${tagTone(tag)}`}>{tag}</span>) : "없음"}</dd></div>
+              <div><dt>태그</dt><dd>{inspectedPage.tags?.length ? inspectedPage.tags.map((tag) => <span key={tag} className={`tag-chip tone-${tagTone(tag, tagColors)}`}>{tag}</span>) : "없음"}</dd></div>
               <div><dt>수정일</dt><dd>{formatDateTime(inspectedPage.updatedAt)}</dd></div>
               <div><dt>생성일</dt><dd>{formatDateTime(inspectedPage.createdAt)}</dd></div>
               <div><dt>상태</dt><dd className="local-saved"><CheckCircle2 size={15} /> 로컬에 저장됨</dd></div>

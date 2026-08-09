@@ -2547,12 +2547,68 @@ textarea:focus-visible {
 .tag-swatch.tone-olive { color: #7c9d6b; }
 .tag-swatch.tone-indigo { color: #6d78a5; }
 
+.tag-color-picker {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-color-option {
+  position: relative;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  cursor: pointer;
+  place-items: center;
+  border-radius: 6px;
+  transition:
+    box-shadow var(--motion-base) var(--ease-standard),
+    filter var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.tag-color-option:hover:not(:disabled) {
+  filter: saturate(1.08);
+  transform: translateY(-2px) scale(1.04);
+}
+
+.tag-color-option:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.tag-color-option.is-selected {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px currentColor;
+  transform: translateY(-1px);
+}
+
+.tag-color-option:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.tag-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.tag-color-option svg {
+  position: absolute;
+  color: #fff;
+  animation: check-pop 260ms var(--ease-out) both;
+}
+
 .new-tag-form {
   display: grid;
   padding: 14px 18px;
   gap: 8px;
   border-bottom: 1px solid var(--line);
-  background: #f3f5f1;
+  background: var(--surface-soft);
 }
 
 .new-tag-form input,
@@ -2560,14 +2616,30 @@ textarea:focus-visible {
   width: 100%;
   height: 36px;
   padding: 0 9px;
-  border: 1px solid #ccd6cf;
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   outline: 0;
-  background: #fff;
+  background: var(--surface-raised);
   font-size: 12px;
 }
 
-.new-tag-form > div {
+.new-tag-color-field {
+  min-width: 0;
+  margin: 2px 0 4px;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+
+.new-tag-color-field legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.new-tag-actions {
   display: flex;
   gap: 7px;
 }
@@ -2581,10 +2653,10 @@ textarea:focus-visible {
 
 .plain-button {
   cursor: pointer;
-  border: 1px solid #d4d9d3;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  color: #5e665f;
-  background: #fff;
+  color: var(--muted);
+  background: var(--surface-raised);
 }
 
 .tag-index-empty {
@@ -2626,6 +2698,38 @@ textarea:focus-visible {
   margin: 0;
   color: #727a73;
   font-size: 12px;
+}
+
+.tag-color-bar {
+  display: flex;
+  min-height: 68px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+  animation: content-rise-in var(--motion-slow) var(--ease-out) both;
+}
+
+.tag-color-label {
+  display: flex;
+  min-width: 112px;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.tag-color-label svg {
+  color: var(--accent);
+}
+
+.tag-color-label small {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .tag-rename-form {
@@ -3937,6 +4041,25 @@ html[data-theme="dark"] .tag-chip {
   filter: saturate(0.75) brightness(0.78);
 }
 
+html[data-theme="dark"] .tag-color-option {
+  filter: saturate(0.8) brightness(0.82);
+}
+
+html[data-theme="dark"] .tag-color-option:hover:not(:disabled),
+html[data-theme="dark"] .tag-color-option.is-selected {
+  filter: saturate(0.92) brightness(0.9);
+}
+
+html[data-theme="dark"] .tag-index-row.is-active {
+  color: #e2e8e4;
+  background: #2a3832;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+html[data-theme="dark"] .tag-index-row.is-active small {
+  color: #a9b4ad;
+}
+
 html[data-theme="dark"] .template-page-button,
 html[data-theme="dark"] .settings-nav button:hover,
 html[data-theme="dark"] .settings-nav button.is-active,
@@ -4594,6 +4717,10 @@ html[data-reduce-motion="true"] *::after {
     min-height: 110px;
   }
 
+  .tag-color-bar {
+    padding: 14px 4px;
+  }
+
   .tag-header-actions {
     gap: 8px;
   }
@@ -4762,6 +4889,12 @@ html[data-reduce-motion="true"] *::after {
 
   .tag-detail-actions {
     align-self: flex-end;
+  }
+
+  .tag-color-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .tagged-note {

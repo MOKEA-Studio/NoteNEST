@@ -243,7 +243,7 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
             </label>
             <div className="document-tags" aria-label="페이지 태그">
               {(page.tags ?? []).map((tag) => (
-                <span key={tag} className={`tag-chip editable tone-${tagTone(tag)}`}>
+                <span key={tag} className={`tag-chip editable tone-${tagTone(tag, settings.tagColors)}`}>
                   <Tag size={13} />
                   {tag}
                   <button type="button" aria-label={`${tag} 태그 제거`} onClick={() => removeTag(tag)}><X size={12} /></button>

@@ -118,6 +118,12 @@ func TestSettingsPersistence(t *testing.T) {
 	settings.LineSpacing = "relaxed"
 	settings.ReduceMotion = true
 	settings.CustomFonts = []FontAsset{{Name: "나의 폰트", URL: settings.FontFamily}}
+	settings.TagColors = map[string]string{
+		"프로젝트":  "coral",
+		"참고":    "indigo",
+		"":      "green",
+		"잘못된 색": "violet",
+	}
 	if _, err := dataStore.saveSettings(context.Background(), settings); err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +132,9 @@ func TestSettingsPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if loaded.FontFamily != settings.FontFamily || loaded.FontSize != 18 || loaded.Theme != "dark" || loaded.LineSpacing != "relaxed" || !loaded.ReduceMotion || len(loaded.CustomFonts) != 1 {
+		t.Fatalf("unexpected settings: %#v", loaded)
+	}
+	if len(loaded.TagColors) != 2 || loaded.TagColors["프로젝트"] != "coral" || loaded.TagColors["참고"] != "indigo" {
 		t.Fatalf("unexpected settings: %#v", loaded)
 	}
 }

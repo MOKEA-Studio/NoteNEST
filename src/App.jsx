@@ -12,7 +12,7 @@ import TemplateGallery from "./components/TemplateGallery";
 import TrashPage from "./components/TrashPage";
 import MobileBottomNav from "./components/MobileBottomNav";
 import { templatePlainText } from "./templates";
-import { normalizeTags } from "./utils";
+import { normalizeTags, tagTone } from "./utils";
 
 const Editor = lazy(() => import("./components/Editor"));
 
@@ -24,6 +24,7 @@ const defaultSettings = {
   lineSpacing: "comfortable",
   reduceMotion: false,
   customFonts: [],
+  tagColors: {},
 };
 
 const pendingDraftKey = "notenest:pending-draft:v1";
@@ -166,7 +167,13 @@ export default function App() {
 
   const loadSettings = useCallback(async () => {
     try {
-      setSettings(await settingsApi.get());
+      const loaded = await settingsApi.get();
+      setSettings({
+        ...defaultSettings,
+        ...loaded,
+        customFonts: loaded.customFonts ?? [],
+        tagColors: loaded.tagColors ?? {},
+      });
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -512,7 +519,19 @@ export default function App() {
 
   async function handleSaveSettings(nextSettings) {
     const saved = await settingsApi.update(nextSettings);
-    setSettings(saved);
+    setSettings({ ...defaultSettings, ...saved, tagColors: saved.tagColors ?? {} });
+  }
+
+  async function saveTagColors(tagColors) {
+    try {
+      const saved = await settingsApi.update({ ...settings, tagColors });
+      setSettings({ ...defaultSettings, ...saved, tagColors: saved.tagColors ?? {} });
+      setError("");
+      return saved;
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
   }
 
   async function handleImportPages(entries) {
@@ -544,13 +563,17 @@ export default function App() {
     }
   }
 
-  async function handleAddTag(tag, pageId) {
+  async function handleAddTag(tag, pageId, tone) {
     if (!(await flushDraft())) return;
     const page = pages.find((item) => item.id === pageId) ?? (draft?.id === pageId ? draft : null);
     if (!page) return;
     try {
       const saved = await pagesApi.update(page.id, { tags: normalizeTags([...(page.tags ?? []), tag]) });
       replaceSavedPages([saved]);
+      await saveTagColors({
+        ...(settings.tagColors ?? {}),
+        [tag]: tagTone(tag, { [tag]: tone }),
+      });
     } catch (requestError) {
       setError(requestError.message);
       throw requestError;
@@ -560,11 +583,18 @@ export default function App() {
   async function handleRenameTag(tag, nextName) {
     if (!(await flushDraft())) return;
     const affected = pages.filter((page) => page.tags?.includes(tag));
+    const currentTagColors = settings.tagColors ?? {};
+    const targetExists = pages.some((page) => page.tags?.includes(nextName));
+    const nextTagColors = { ...currentTagColors };
+    const nextTone = targetExists ? tagTone(nextName, currentTagColors) : tagTone(tag, currentTagColors);
+    delete nextTagColors[tag];
+    nextTagColors[nextName] = nextTone;
     try {
       const saved = await Promise.all(affected.map((page) => pagesApi.update(page.id, {
         tags: normalizeTags(page.tags.map((item) => (item === tag ? nextName : item))),
       })));
       replaceSavedPages(saved);
+      await saveTagColors(nextTagColors);
     } catch (requestError) {
       setError(requestError.message);
       throw requestError;
@@ -575,15 +605,22 @@ export default function App() {
     if (!window.confirm(`“${tag}” 태그를 모든 노트에서 삭제할까요?`)) return;
     if (!(await flushDraft())) return;
     const affected = pages.filter((page) => page.tags?.includes(tag));
+    const nextTagColors = { ...(settings.tagColors ?? {}) };
+    delete nextTagColors[tag];
     try {
       const saved = await Promise.all(affected.map((page) => pagesApi.update(page.id, {
         tags: page.tags.filter((item) => item !== tag),
       })));
       replaceSavedPages(saved);
+      await saveTagColors(nextTagColors);
       setSelectedTag("");
     } catch (requestError) {
       setError(requestError.message);
     }
+  }
+
+  async function handleSetTagColor(tag, tone) {
+    await saveTagColors({ ...(settings.tagColors ?? {}), [tag]: tone });
   }
 
   const showRecovery = Boolean(draft) && (!connected || recoveredDraft || saveState === "offline");
@@ -638,6 +675,7 @@ export default function App() {
           onSelect={handleSelect}
           onCreate={handleCreate}
           onUpdatePage={handleUpdatePage}
+          tagColors={settings.tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
       ) : view === "tags" ? (
@@ -650,6 +688,8 @@ export default function App() {
           onAddTag={handleAddTag}
           onRenameTag={handleRenameTag}
           onDeleteTag={handleDeleteTag}
+          onSetTagColor={handleSetTagColor}
+          tagColors={settings.tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
       ) : view === "trash" ? (

@@ -363,6 +363,7 @@ func (s *store) getSettings(ctx context.Context) (AppSettings, error) {
 	if settings.CustomFonts == nil {
 		settings.CustomFonts = make([]FontAsset, 0)
 	}
+	settings.TagColors = sanitizeTagColors(settings.TagColors)
 	if settings.Theme == "" {
 		settings.Theme = "system"
 	}

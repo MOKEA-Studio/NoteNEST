@@ -56,9 +56,12 @@ export function normalizeTags(tags) {
   return result;
 }
 
-const tagTones = ["green", "gold", "coral", "cyan", "olive", "indigo"];
+export const tagTones = ["green", "gold", "coral", "cyan", "olive", "indigo"];
 
-export function tagTone(tag) {
+export function tagTone(tag, tagColors = {}) {
+  const selectedTone = tagColors?.[tag];
+  if (tagTones.includes(selectedTone)) return selectedTone;
+
   let hash = 0;
   for (const character of tag ?? "") {
     hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
