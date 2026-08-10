@@ -953,7 +953,7 @@ export default function App() {
         <TemplateGallery onCreate={handleCreateFromTemplate} onCancel={() => setView("editor")} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : draft ? (
         <Suspense fallback={<main className="editor-shell"><div className="editor-loading">편집기를 준비하는 중...</div></main>}>
-          <Editor key={draft.id} page={draft} folders={workspaceFolders} saveState={saveState} settings={editorSettings} onChange={handleDraftChange} onDelete={handleDelete} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
+          <Editor key={draft.id} page={draft} folders={workspaceFolders} saveState={saveState} settings={editorSettings} onChange={handleDraftChange} onCopyLink={handleCopyPageLink} onCreate={handleCreate} onDelete={handleDelete} onDuplicate={handleDuplicatePage} onOpenNewTab={handleOpenPageInNewTab} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
         </Suspense>
       ) : (
         <EmptyState hasPages={hasPages} onCreate={handleCreate} onCreateTemplate={() => setView("templates")} onOpenSidebar={() => setSidebarOpen(true)} />

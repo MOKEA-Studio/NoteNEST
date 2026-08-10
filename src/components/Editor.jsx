@@ -4,12 +4,18 @@ import {
   CalendarDays,
   Check,
   CloudOff,
+  Copy,
+  ExternalLink,
   FileText,
   Folder,
   History,
   ImagePlus,
+  Link2,
   LoaderCircle,
+  LockKeyhole,
+  MoreHorizontal,
   Plus,
+  Share2,
   Star,
   Tag,
   Trash2,
@@ -18,6 +24,7 @@ import {
 import { uploadsApi } from "../api";
 import { normalizeTags, tagTone } from "../utils";
 import BlockEditor from "./BlockEditor";
+import PageGlyph from "./PageGlyph";
 import { MobileMenuButton } from "./Sidebar";
 import VersionHistoryPanel from "./VersionHistoryPanel";
 
@@ -29,6 +36,18 @@ function formatDate(value) {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function formatLastEdited(value) {
+  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "방금 편집";
+  if (minutes < 60) return `${minutes}분 전 편집`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전 편집`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}일 전 편집`;
+  return `${formatDate(value)} 편집`;
 }
 
 function SaveStatus({ state }) {
@@ -123,14 +142,55 @@ function PageIcon({ value, onChange, onError }) {
   );
 }
 
-export default function Editor({ page, folders, saveState, settings, onChange, onDelete, onRestoreVersion, onOpenSidebar }) {
+export default function Editor({ page, folders, saveState, settings, onChange, onCopyLink, onCreate, onDelete, onDuplicate, onOpenNewTab, onRestoreVersion, onOpenSidebar }) {
   const coverInputRef = useRef(null);
+  const topbarActionsRef = useRef(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [assetError, setAssetError] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [activeTopbarMenu, setActiveTopbarMenu] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  useEffect(() => setHistoryOpen(false), [page.id]);
+  useEffect(() => {
+    setHistoryOpen(false);
+    setActiveTopbarMenu("");
+    setLinkCopied(false);
+  }, [page.id]);
+
+  useEffect(() => {
+    if (!activeTopbarMenu) return undefined;
+    function closeMenu(event) {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && topbarActionsRef.current?.contains(event.target)) return;
+      setActiveTopbarMenu("");
+    }
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeMenu);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeMenu);
+    };
+  }, [activeTopbarMenu]);
+
+  async function copyPageLink() {
+    try {
+      await onCopyLink(page);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1800);
+    } catch (error) {
+      setAssetError(error.message);
+    }
+  }
+
+  async function runTopbarAction(action) {
+    setActiveTopbarMenu("");
+    try {
+      await action();
+    } catch (error) {
+      setAssetError(error.message);
+    }
+  }
 
   async function uploadCover(file) {
     setCoverUploading(true);
@@ -158,37 +218,69 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
 
   return (
     <main className="editor-shell">
-      <header className="editor-toolbar">
-        <div className="toolbar-leading">
-          <MobileMenuButton onClick={onOpenSidebar} />
-          <span className="breadcrumb">NoteNest</span>
-          <span className="breadcrumb-separator">/</span>
-          <span className="breadcrumb-current">{page.title || "제목 없는 페이지"}</span>
+      <header className="editor-toolbar notion-toolbar">
+        <div className="editor-window-row">
+          <div className="editor-page-tab" aria-current="page">
+            <PageGlyph page={page} size={14} />
+            <span>{page.title || "제목 없는 페이지"}</span>
+          </div>
+          <button className="editor-new-tab" type="button" aria-label="새 페이지" title="새 페이지" onClick={() => onCreate()}>
+            <Plus aria-hidden="true" size={16} />
+          </button>
         </div>
-        <div className="toolbar-actions">
-          <SaveStatus state={saveState} />
-          <span className="toolbar-divider" aria-hidden="true" />
-          <button className={`icon-button ${historyOpen ? "is-active" : ""}`} type="button" aria-label="버전 기록" title="버전 기록" onClick={() => setHistoryOpen((current) => !current)}>
-            <History aria-hidden="true" size={18} />
-          </button>
-          <button
-            className={`icon-button ${page.favorite ? "is-favorite" : ""}`}
-            type="button"
-            aria-label={page.favorite ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
-            title={page.favorite ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
-            onClick={() => onChange({ favorite: !page.favorite })}
-          >
-            <Star aria-hidden="true" size={18} fill={page.favorite ? "currentColor" : "none"} />
-          </button>
-          <button
-            className="icon-button danger-button"
-            type="button"
-            aria-label="페이지 삭제"
-            title="페이지 삭제"
-            onClick={onDelete}
-          >
-            <Trash2 aria-hidden="true" size={18} />
-          </button>
+        <div className="editor-page-row">
+          <div className="toolbar-leading">
+            <MobileMenuButton onClick={onOpenSidebar} />
+            <PageGlyph page={page} size={16} />
+            <span className="breadcrumb-current">{page.title || "제목 없는 페이지"}</span>
+            <span className="page-visibility">
+              {page.folder && page.folder !== "미분류" ? <Folder aria-hidden="true" size={13} /> : <LockKeyhole aria-hidden="true" size={13} />}
+              {page.folder && page.folder !== "미분류" ? page.folder : "개인 페이지"}
+            </span>
+          </div>
+          <div className="toolbar-actions" ref={topbarActionsRef}>
+            <span className="last-edited">{formatLastEdited(page.updatedAt)}</span>
+            <SaveStatus state={saveState} />
+            <div className="topbar-popover-wrap">
+              <button className={`topbar-share-button ${activeTopbarMenu === "share" ? "is-active" : ""}`} type="button" aria-expanded={activeTopbarMenu === "share"} onClick={() => setActiveTopbarMenu((current) => current === "share" ? "" : "share")}>
+                <Share2 aria-hidden="true" size={15} />
+                <span>공유</span>
+              </button>
+              {activeTopbarMenu === "share" && (
+                <div className="topbar-popover share-popover" role="dialog" aria-label="페이지 공유">
+                  <div className="topbar-popover-heading"><strong>이 페이지 공유</strong><small>링크로 바로 열 수 있습니다</small></div>
+                  <div className="share-scope"><span><LockKeyhole size={15} /></span><div><strong>내 NoteNest</strong><small>로컬 워크스페이스</small></div></div>
+                  <button className="copy-link-button" type="button" onClick={copyPageLink}>
+                    {linkCopied ? <Check aria-hidden="true" size={15} /> : <Link2 aria-hidden="true" size={15} />}
+                    {linkCopied ? "링크를 복사했습니다" : "페이지 링크 복사"}
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              className={`icon-button ${page.favorite ? "is-favorite" : ""}`}
+              type="button"
+              aria-label={page.favorite ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+              title={page.favorite ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+              onClick={() => onChange({ favorite: !page.favorite })}
+            >
+              <Star aria-hidden="true" size={17} fill={page.favorite ? "currentColor" : "none"} />
+            </button>
+            <div className="topbar-popover-wrap">
+              <button className={`icon-button ${activeTopbarMenu === "more" ? "is-active" : ""}`} type="button" aria-label="페이지 메뉴" title="페이지 메뉴" aria-expanded={activeTopbarMenu === "more"} onClick={() => setActiveTopbarMenu((current) => current === "more" ? "" : "more")}>
+                <MoreHorizontal aria-hidden="true" size={18} />
+              </button>
+              {activeTopbarMenu === "more" && (
+                <div className="topbar-popover page-actions-popover" role="menu">
+                  <button type="button" role="menuitem" onClick={() => { setActiveTopbarMenu(""); setHistoryOpen(true); }}><History size={15} />버전 기록</button>
+                  <button type="button" role="menuitem" onClick={() => runTopbarAction(() => onDuplicate(page))}><Copy size={15} />사본 만들기</button>
+                  <button type="button" role="menuitem" onClick={() => runTopbarAction(() => onOpenNewTab(page))}><ExternalLink size={15} />새 창에서 열기</button>
+                  <span className="topbar-menu-separator" aria-hidden="true" />
+                  <button className="is-danger" type="button" role="menuitem" onClick={() => runTopbarAction(onDelete)}><Trash2 size={15} />휴지통으로 이동</button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
