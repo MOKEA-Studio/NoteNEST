@@ -107,7 +107,7 @@ textarea:focus-visible {
   flex-direction: column;
   border-right: 1px solid var(--line);
   background: rgba(248, 249, 246, 0.98);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .sidebar-topbar {
@@ -116,6 +116,7 @@ textarea:focus-visible {
   justify-content: space-between;
   min-height: 80px;
   padding: 20px 18px 10px 20px;
+  -webkit-app-region: drag;
 }
 
 .brand {
@@ -128,6 +129,7 @@ textarea:focus-visible {
   background: transparent;
   font-size: 19px;
   font-weight: 730;
+  -webkit-app-region: no-drag;
 }
 
 .brand-mark {
