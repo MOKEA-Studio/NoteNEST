@@ -182,7 +182,10 @@ export default function LibraryPage({
             </div>
             <div className="inspector-title"><PageGlyph page={inspectedPage} size={20} /><strong>{pageTitle(inspectedPage)}</strong></div>
             <dl className="inspector-properties">
-              <div><dt>폴더</dt><dd><label className="inspector-folder"><Folder size={15} /><select value={inspectedPage.folder || ""} onChange={(event) => onUpdatePage(inspectedPage, { folder: event.target.value })}>{[...new Set([inspectedPage.folder, ...allFolders].filter(Boolean))].map((folder) => <option key={folder} value={folder}>{folder}</option>)}</select></label></dd></div>
+              <div><dt>폴더</dt><dd><label className="inspector-folder"><Folder size={15} /><select value={inspectedPage.folderId || ""} onChange={(event) => {
+                const folder = allFolders.find((item) => item.id === event.target.value);
+                onUpdatePage(inspectedPage, { folderId: event.target.value, folder: folder?.name ?? "미분류" });
+              }}><option value="">미분류</option>{allFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label></dd></div>
               <div><dt>태그</dt><dd>{inspectedPage.tags?.length ? inspectedPage.tags.map((tag) => <span key={tag} className={`tag-chip tone-${tagTone(tag, tagColors)}`}>{tag}</span>) : "없음"}</dd></div>
               <div><dt>수정일</dt><dd>{formatDateTime(inspectedPage.updatedAt)}</dd></div>
               <div><dt>생성일</dt><dd>{formatDateTime(inspectedPage.createdAt)}</dd></div>

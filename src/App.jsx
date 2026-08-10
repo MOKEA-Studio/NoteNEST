@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { pagesApi, settingsApi, trashApi, versionsApi } from "./api";
+import { foldersApi, pagesApi, settingsApi, tagsApi, trashApi, versionsApi } from "./api";
 import ConfirmDialog from "./components/ConfirmDialog";
 import EmptyState from "./components/EmptyState";
+import HomePage from "./components/HomePage";
 import LibraryPage from "./components/LibraryPage";
 import PageContextMenu from "./components/PageContextMenu";
 import SearchPage from "./components/SearchPage";
@@ -69,6 +70,7 @@ function pageSignature(page) {
     blocks: page.blocks,
     icon: page.icon,
     coverUrl: page.coverUrl,
+    folderId: page.folderId,
     folder: page.folder,
     tags: page.tags,
     favorite: page.favorite,
@@ -82,6 +84,7 @@ function pageChanges(page) {
     blocks: page.blocks,
     icon: page.icon,
     coverUrl: page.coverUrl,
+    folderId: page.folderId,
     folder: page.folder,
     tags: page.tags,
     favorite: page.favorite,
@@ -100,14 +103,19 @@ export default function App() {
   const [error, setError] = useState("");
   const [saveState, setSaveState] = useState("saved");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [view, setView] = useState("editor");
+  const [view, setView] = useState("home");
   const [selectedTag, setSelectedTag] = useState("");
   const [settings, setSettings] = useState(defaultSettings);
+  const [folderEntities, setFolderEntities] = useState([]);
+  const [tagEntities, setTagEntities] = useState([]);
+  const [activeFolderId, setActiveFolderId] = useState("");
   const [trashPages, setTrashPages] = useState([]);
   const [trashLoading, setTrashLoading] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [folderDeleteCandidate, setFolderDeleteCandidate] = useState(null);
   const [pageMenu, setPageMenu] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [deletingFolder, setDeletingFolder] = useState(false);
   const [connected, setConnected] = useState(true);
   const [recoveredDraft, setRecoveredDraft] = useState(false);
   const [retrySequence, setRetrySequence] = useState(0);
@@ -151,13 +159,15 @@ export default function App() {
       if (data.length > 0) {
         const pending = readPendingDraft();
         const current = draftRef.current;
+        const linkedPageId = new URLSearchParams(window.location.search).get("page");
         const cachedPage = pending ? data.find((page) => page.id === pending.page.id) : null;
-        const serverPage = cachedPage ?? data.find((page) => page.id === current?.id) ?? data[0];
+        const serverPage = cachedPage ?? data.find((page) => page.id === linkedPageId) ?? data.find((page) => page.id === current?.id) ?? data[0];
         const canRecover = cachedPage && pageSignature(pending.page) !== pageSignature(cachedPage);
         const selected = canRecover ? { ...cachedPage, ...pageChanges(pending.page) } : serverPage;
         lastSavedRef.current = pageSignature(serverPage);
         setDraft(selected);
         setRecoveredDraft(Boolean(canRecover));
+        if (linkedPageId && serverPage.id === linkedPageId) setView("editor");
         if (!canRecover) clearPendingDraft(pending?.page?.id);
       } else {
         setDraft(null);
@@ -195,9 +205,20 @@ export default function App() {
     }
   }, []);
 
+  const loadTaxonomy = useCallback(async () => {
+    try {
+      const [folders, tags] = await Promise.all([foldersApi.list(), tagsApi.list()]);
+      setFolderEntities(folders);
+      setTagEntities(tags);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }, []);
+
   function reloadWorkspace() {
     loadPages();
     loadSettings();
+    loadTaxonomy();
   }
 
   useEffect(() => {
@@ -213,6 +234,10 @@ export default function App() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    loadTaxonomy();
+  }, [loadTaxonomy]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -299,8 +324,17 @@ export default function App() {
 
   const selectedId = draft?.id ?? null;
   const hasPages = pages.length > 0;
-  const folders = useMemo(() => [...new Set(pages.map((page) => page.folder?.trim() || "미분류"))].sort((left, right) => left.localeCompare(right, "ko-KR")), [pages]);
   const favoritePages = useMemo(() => pages.filter((page) => page.favorite), [pages]);
+  const workspaceFolders = useMemo(() => folderEntities.map((folder) => ({
+    ...folder,
+    pageCount: pages.filter((page) => page.folderId === folder.id).length,
+  })), [folderEntities, pages]);
+  const activeFolder = useMemo(() => workspaceFolders.find((folder) => folder.id === activeFolderId) ?? null, [activeFolderId, workspaceFolders]);
+  const tagColors = useMemo(() => ({
+    ...(settings.tagColors ?? {}),
+    ...Object.fromEntries(tagEntities.map((tag) => [tag.name, tag.color])),
+  }), [settings.tagColors, tagEntities]);
+  const editorSettings = useMemo(() => ({ ...settings, tagColors }), [settings, tagColors]);
 
   async function flushDraft() {
     if (!draft || pageSignature(draft) === lastSavedRef.current) return true;
@@ -342,14 +376,23 @@ export default function App() {
     });
   }
 
+  function resolveFolderId(folder) {
+    if (folder && typeof folder === "object") return folder.id ?? "";
+    const value = typeof folder === "string" ? folder.trim() : "";
+    return workspaceFolders.find((item) => item.id === value || item.name === value)?.id ?? "";
+  }
+
+  function setPageLocation(pageId) {
+    const url = new URL(window.location.href);
+    if (pageId) url.searchParams.set("page", pageId);
+    else url.searchParams.delete("page");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
   async function handleCreate(folder) {
     if (!(await flushDraft())) return;
     try {
-      let page = await pagesApi.create();
-      const targetFolder = typeof folder === "string" ? folder.trim() : "";
-      if (targetFolder && targetFolder !== page.folder) {
-        page = await pagesApi.update(page.id, { folder: targetFolder });
-      }
+      const page = await pagesApi.create({ folderId: resolveFolderId(folder) });
       setQuery("");
       setPages((current) => [page, ...current]);
       setDraft(page);
@@ -357,14 +400,67 @@ export default function App() {
       setSaveState("saved");
       setSidebarOpen(false);
       setView("editor");
+      setPageLocation(page.id);
       setError("");
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  async function handleCreateFolder(folder) {
-    if (folder.trim()) await handleCreate(folder.trim());
+  async function handleCreateFolder(name) {
+    try {
+      const created = await foldersApi.create(name);
+      setFolderEntities((current) => [...current, created].sort((left, right) => left.name.localeCompare(right.name, "ko-KR")));
+      setError("");
+      return created;
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleRenameFolder(folder, name) {
+    try {
+      const updated = await foldersApi.update(folder.id, name);
+      setFolderEntities((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setPages((current) => current.map((page) => page.folderId === updated.id ? { ...page, folder: updated.name } : page));
+      setDraft((current) => current?.folderId === updated.id ? { ...current, folder: updated.name } : current);
+      setError("");
+      return updated;
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleRequestDeleteFolder(folder) {
+    setFolderDeleteCandidate(folder);
+  }
+
+  async function confirmDeleteFolder() {
+    if (!folderDeleteCandidate) return;
+    if (!(await flushDraft())) return;
+    setDeletingFolder(true);
+    try {
+      await foldersApi.remove(folderDeleteCandidate.id);
+      setFolderEntities((current) => current.filter((folder) => folder.id !== folderDeleteCandidate.id));
+      setPages((current) => current.map((page) => page.folderId === folderDeleteCandidate.id ? { ...page, folderId: "", folder: "미분류" } : page));
+      if (draft?.folderId === folderDeleteCandidate.id) {
+        const nextDraft = { ...draft, folderId: "", folder: "미분류" };
+        setDraft(nextDraft);
+        lastSavedRef.current = pageSignature(nextDraft);
+      }
+      if (activeFolderId === folderDeleteCandidate.id) {
+        setActiveFolderId("");
+        setView("all");
+      }
+      setFolderDeleteCandidate(null);
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setDeletingFolder(false);
+    }
   }
 
   async function handleCreateFromTemplate(template) {
@@ -383,6 +479,8 @@ export default function App() {
       lastSavedRef.current = pageSignature(page);
       setSaveState("saved");
       setView("editor");
+      setPageLocation(page.id);
+      loadTaxonomy();
       setError("");
     } catch (requestError) {
       setError(requestError.message);
@@ -393,6 +491,7 @@ export default function App() {
     if (page.id === draft?.id) {
       setSidebarOpen(false);
       setView("editor");
+      setPageLocation(page.id);
       return;
     }
     if (!(await flushDraft())) return;
@@ -402,6 +501,7 @@ export default function App() {
     setSaveState("saved");
     setSidebarOpen(false);
     setView("editor");
+    setPageLocation(page.id);
   }
 
   function handleDraftChange(changes) {
@@ -459,7 +559,7 @@ export default function App() {
     const source = page.id === draft?.id ? draft : pages.find((item) => item.id === page.id) ?? page;
     if (!(await flushDraft())) return;
     try {
-      const created = await pagesApi.create();
+      const created = await pagesApi.create({ folderId: source.folderId ?? "" });
       const duplicate = await pagesApi.update(created.id, {
         ...pageChanges(source),
         title: `${pageTitle(source)} 복사본`,
@@ -473,6 +573,7 @@ export default function App() {
       setQuery("");
       setView("editor");
       setSidebarOpen(false);
+      setPageLocation(duplicate.id);
       setError("");
     } catch (requestError) {
       setError(requestError.message);
@@ -484,6 +585,32 @@ export default function App() {
     if (!page) return;
     if (page.id === draft?.id && !(await flushDraft())) return;
     setDeleteCandidate(page);
+  }
+
+  async function handleMovePage(page, folderId) {
+    const current = page.id === draft?.id ? draft : pages.find((item) => item.id === page.id) ?? page;
+    if (current.id === draft?.id && !(await flushDraft())) throw new Error("현재 페이지를 저장하지 못했습니다.");
+    try {
+      const saved = await pagesApi.update(current.id, { folderId });
+      replaceSavedPages([saved]);
+      setError("");
+      return saved;
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
+  }
+
+  async function handleCopyPageLink(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", page.id);
+    await navigator.clipboard.writeText(url.toString());
+  }
+
+  function handleOpenPageInNewTab(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", page.id);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   }
 
   async function handleDelete() {
@@ -504,7 +631,11 @@ export default function App() {
         lastSavedRef.current = nextPage ? pageSignature(nextPage) : "";
         setSaveState("saved");
         setRecoveredDraft(false);
-        if (!nextPage) setView("editor");
+        if (nextPage) setPageLocation(nextPage.id);
+        else {
+          setPageLocation("");
+          setView("home");
+        }
       }
       setDeleteCandidate(null);
     } catch (requestError) {
@@ -568,6 +699,7 @@ export default function App() {
       setDraft(restored);
       setPages((current) => sortByUpdatedAt(current.map((page) => page.id === restored.id ? restored : page)));
       setSaveState("saved");
+      loadTaxonomy();
       return restored;
     } catch (requestError) {
       setError(requestError.message);
@@ -576,14 +708,18 @@ export default function App() {
   }
 
   function handleNavigate(nextView) {
-    if (nextView === "home") {
-      setView("editor");
-      setSidebarOpen(false);
-      return;
-    }
     if (nextView === "trash") loadTrash();
+    if (nextView === "tags" || nextView === "home") loadTaxonomy();
+    if (nextView !== "editor") setPageLocation("");
     setView(nextView);
     if (nextView !== "search") setSidebarOpen(false);
+  }
+
+  function handleOpenFolder(folder) {
+    setActiveFolderId(folder.id);
+    setPageLocation("");
+    setView("folder");
+    setSidebarOpen(false);
   }
 
   function handleSearchChange(value) {
@@ -602,16 +738,27 @@ export default function App() {
     setSettings({ ...defaultSettings, ...saved, tagColors: saved.tagColors ?? {} });
   }
 
-  async function saveTagColors(tagColors) {
-    try {
-      const saved = await settingsApi.update({ ...settings, tagColors });
-      setSettings({ ...defaultSettings, ...saved, tagColors: saved.tagColors ?? {} });
-      setError("");
-      return saved;
-    } catch (requestError) {
-      setError(requestError.message);
-      throw requestError;
-    }
+  async function refreshPagesAndTags() {
+    const [nextPages, nextTags] = await Promise.all([pagesApi.list(), tagsApi.list()]);
+    setPages(nextPages);
+    setTagEntities(nextTags);
+    setDraft((current) => {
+      if (!current) return current;
+      const fresh = nextPages.find((page) => page.id === current.id);
+      if (!fresh) return current;
+      lastSavedRef.current = pageSignature(fresh);
+      return fresh;
+    });
+    return { pages: nextPages, tags: nextTags };
+  }
+
+  async function getTagEntity(name) {
+    const matches = (tag) => tag.name.localeCompare(name, "ko-KR", { sensitivity: "accent" }) === 0;
+    const cached = tagEntities.find(matches);
+    if (cached) return cached;
+    const fresh = await tagsApi.list();
+    setTagEntities(fresh);
+    return fresh.find(matches) ?? null;
   }
 
   async function handleImportPages(entries) {
@@ -636,7 +783,9 @@ export default function App() {
       setDraft(imported[0]);
       lastSavedRef.current = pageSignature(imported[0]);
       setView("editor");
+      setPageLocation(imported[0].id);
       setSaveState("saved");
+      await loadTaxonomy();
     } catch (requestError) {
       setError(requestError.message);
       throw requestError;
@@ -648,12 +797,11 @@ export default function App() {
     const page = pages.find((item) => item.id === pageId) ?? (draft?.id === pageId ? draft : null);
     if (!page) return;
     try {
+      const existingTag = await getTagEntity(tag);
+      if (!existingTag) await tagsApi.create(tag, tagTone(tag, { [tag]: tone }));
       const saved = await pagesApi.update(page.id, { tags: normalizeTags([...(page.tags ?? []), tag]) });
       replaceSavedPages([saved]);
-      await saveTagColors({
-        ...(settings.tagColors ?? {}),
-        [tag]: tagTone(tag, { [tag]: tone }),
-      });
+      await loadTaxonomy();
     } catch (requestError) {
       setError(requestError.message);
       throw requestError;
@@ -662,19 +810,11 @@ export default function App() {
 
   async function handleRenameTag(tag, nextName) {
     if (!(await flushDraft())) return;
-    const affected = pages.filter((page) => page.tags?.includes(tag));
-    const currentTagColors = settings.tagColors ?? {};
-    const targetExists = pages.some((page) => page.tags?.includes(nextName));
-    const nextTagColors = { ...currentTagColors };
-    const nextTone = targetExists ? tagTone(nextName, currentTagColors) : tagTone(tag, currentTagColors);
-    delete nextTagColors[tag];
-    nextTagColors[nextName] = nextTone;
     try {
-      const saved = await Promise.all(affected.map((page) => pagesApi.update(page.id, {
-        tags: normalizeTags(page.tags.map((item) => (item === tag ? nextName : item))),
-      })));
-      replaceSavedPages(saved);
-      await saveTagColors(nextTagColors);
+      const entity = await getTagEntity(tag);
+      if (!entity) return;
+      await tagsApi.update(entity.id, { name: nextName });
+      await refreshPagesAndTags();
     } catch (requestError) {
       setError(requestError.message);
       throw requestError;
@@ -684,15 +824,11 @@ export default function App() {
   async function handleDeleteTag(tag) {
     if (!window.confirm(`“${tag}” 태그를 모든 노트에서 삭제할까요?`)) return;
     if (!(await flushDraft())) return;
-    const affected = pages.filter((page) => page.tags?.includes(tag));
-    const nextTagColors = { ...(settings.tagColors ?? {}) };
-    delete nextTagColors[tag];
     try {
-      const saved = await Promise.all(affected.map((page) => pagesApi.update(page.id, {
-        tags: page.tags.filter((item) => item !== tag),
-      })));
-      replaceSavedPages(saved);
-      await saveTagColors(nextTagColors);
+      const entity = await getTagEntity(tag);
+      if (!entity) return;
+      await tagsApi.remove(entity.id);
+      await refreshPagesAndTags();
       setSelectedTag("");
     } catch (requestError) {
       setError(requestError.message);
@@ -700,11 +836,20 @@ export default function App() {
   }
 
   async function handleSetTagColor(tag, tone) {
-    await saveTagColors({ ...(settings.tagColors ?? {}), [tag]: tone });
+    try {
+      const entity = await getTagEntity(tag);
+      if (!entity) return;
+      const updated = await tagsApi.update(entity.id, { color: tone });
+      setTagEntities((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    }
   }
 
   const showRecovery = Boolean(draft) && (!connected || recoveredDraft || saveState === "offline");
-  const showMobileTabs = ["all", "favorites", "tags", "search", "trash", "settings"].includes(view) || (view === "editor" && !draft);
+  const showMobileTabs = ["home", "all", "folder", "favorites", "tags", "search", "trash", "settings"].includes(view) || (view === "editor" && !draft);
   const contextMenuPage = pageMenu
     ? (draft?.id === pageMenu.pageId ? draft : pages.find((page) => page.id === pageMenu.pageId) ?? pageMenu.page)
     : null;
@@ -714,6 +859,7 @@ export default function App() {
       <Sidebar
         open={sidebarOpen}
         pages={pages}
+        folders={workspaceFolders}
         selectedId={selectedId}
         query={query}
         loading={loading}
@@ -721,6 +867,8 @@ export default function App() {
         onQueryChange={handleSearchChange}
         onCreate={handleCreate}
         onCreateFolder={handleCreateFolder}
+        onRenameFolder={handleRenameFolder}
+        onDeleteFolder={handleRequestDeleteFolder}
         onSelect={handleSelect}
         onOpenPageMenu={handleOpenPageMenu}
         onNavigate={handleNavigate}
@@ -745,27 +893,41 @@ export default function App() {
         </div>
       )}
 
-      {view === "settings" ? (
+      {view === "home" ? (
+        <HomePage
+          pages={pages}
+          folders={workspaceFolders}
+          tags={tagEntities}
+          onCreate={handleCreate}
+          onSelect={handleSelect}
+          onNavigate={handleNavigate}
+          onOpenFolder={handleOpenFolder}
+          onOpenPageMenu={handleOpenPageMenu}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+      ) : view === "settings" ? (
         <SettingsPage settings={settings} pages={pages} currentPage={draft} onSave={handleSaveSettings} onImport={handleImportPages} onBack={() => setView("editor")} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : view === "search" ? (
         <SearchPage query={query} pages={pages} onQueryChange={handleSearchChange} onSelect={handleSelect} onOpenPageMenu={handleOpenPageMenu} onOpenSidebar={() => setSidebarOpen(true)} />
-      ) : view === "all" || view === "favorites" ? (
+      ) : view === "all" || view === "favorites" || view === "folder" ? (
         <LibraryPage
-          key={view}
+          key={`${view}-${activeFolderId}`}
           title={view === "favorites" ? "즐겨찾기" : "모든 노트"}
           pages={view === "favorites" ? favoritePages : pages}
-          allFolders={folders}
+          allFolders={workspaceFolders}
+          folderFilter={view === "folder" ? activeFolder?.name ?? "" : ""}
           selectedId={selectedId}
           onSelect={handleSelect}
           onCreate={handleCreate}
           onUpdatePage={handleUpdatePage}
           onOpenPageMenu={handleOpenPageMenu}
-          tagColors={settings.tagColors}
+          tagColors={tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
       ) : view === "tags" ? (
         <TagsPage
           pages={pages}
+          tagEntities={tagEntities}
           selectedId={selectedId}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
@@ -775,7 +937,7 @@ export default function App() {
           onDeleteTag={handleDeleteTag}
           onSetTagColor={handleSetTagColor}
           onOpenPageMenu={handleOpenPageMenu}
-          tagColors={settings.tagColors}
+          tagColors={tagColors}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
       ) : view === "trash" ? (
@@ -791,7 +953,7 @@ export default function App() {
         <TemplateGallery onCreate={handleCreateFromTemplate} onCancel={() => setView("editor")} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : draft ? (
         <Suspense fallback={<main className="editor-shell"><div className="editor-loading">편집기를 준비하는 중...</div></main>}>
-          <Editor key={draft.id} page={draft} folders={folders} saveState={saveState} settings={settings} onChange={handleDraftChange} onDelete={handleDelete} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
+          <Editor key={draft.id} page={draft} folders={workspaceFolders} saveState={saveState} settings={editorSettings} onChange={handleDraftChange} onDelete={handleDelete} onRestoreVersion={handleRestoreVersion} onOpenSidebar={() => setSidebarOpen(true)} />
         </Suspense>
       ) : (
         <EmptyState hasPages={hasPages} onCreate={handleCreate} onCreateTemplate={() => setView("templates")} onOpenSidebar={() => setSidebarOpen(true)} />
@@ -799,10 +961,14 @@ export default function App() {
       <PageContextMenu
         page={contextMenuPage}
         position={pageMenu}
+        folders={workspaceFolders}
         onClose={closePageMenu}
         onRename={handleRenamePage}
         onToggleFavorite={handleTogglePageFavorite}
         onDuplicate={handleDuplicatePage}
+        onCopyLink={handleCopyPageLink}
+        onOpenNewTab={handleOpenPageInNewTab}
+        onMove={handleMovePage}
         onDelete={handleRequestDeletePage}
       />
       <ConfirmDialog
@@ -814,6 +980,16 @@ export default function App() {
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteCandidate(null)}
+      />
+      <ConfirmDialog
+        open={Boolean(folderDeleteCandidate)}
+        title="폴더를 삭제할까요?"
+        description={`“${folderDeleteCandidate?.name || "폴더"}” 안의 페이지는 삭제되지 않고 미분류로 이동합니다.`}
+        confirmLabel="폴더 삭제"
+        danger
+        busy={deletingFolder}
+        onConfirm={confirmDeleteFolder}
+        onCancel={() => setFolderDeleteCandidate(null)}
       />
       {showMobileTabs && <MobileBottomNav view={view} onNavigate={handleNavigate} onOpenSettings={handleOpenSettings} />}
     </div>

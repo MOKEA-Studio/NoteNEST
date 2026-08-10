@@ -37,6 +37,7 @@ function TagColorPicker({ value, label, disabled = false, onChange }) {
 
 export default function TagsPage({
   pages,
+  tagEntities = [],
   selectedId,
   selectedTag,
   onSelectTag,
@@ -65,8 +66,11 @@ export default function TagsPage({
     for (const page of pages) {
       for (const tag of page.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
+    for (const tag of tagEntities) {
+      if (!counts.has(tag.name)) counts.set(tag.name, tag.pageCount ?? 0);
+    }
     return [...counts.entries()].sort(([left], [right]) => left.localeCompare(right, "ko-KR"));
-  }, [pages]);
+  }, [pages, tagEntities]);
   const visibleTags = tags.filter(([tag]) => tag.toLocaleLowerCase("ko-KR").includes(query.trim().toLocaleLowerCase("ko-KR")));
 
   useEffect(() => {

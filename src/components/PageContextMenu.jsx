@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, LoaderCircle, Pencil, Star, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  Folder,
+  FolderInput,
+  Link2,
+  LoaderCircle,
+  Pencil,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import PageGlyph from "./PageGlyph";
 import { pageTitle } from "../utils";
 
 const menuWidth = 238;
-const menuHeight = 294;
+const menuHeight = 438;
 const viewportPadding = 8;
 
 function menuPosition(position) {
@@ -15,17 +29,31 @@ function menuPosition(position) {
   };
 }
 
-export default function PageContextMenu({ page, position, onClose, onRename, onToggleFavorite, onDuplicate, onDelete }) {
+export default function PageContextMenu({
+  page,
+  position,
+  folders = [],
+  onClose,
+  onRename,
+  onToggleFavorite,
+  onDuplicate,
+  onCopyLink,
+  onOpenNewTab,
+  onMove,
+  onDelete,
+}) {
   const menuRef = useRef(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   useEffect(() => {
     if (!page) return undefined;
     setRenaming(false);
     setRenameValue(pageTitle(page));
     setBusy(false);
+    setMoving(false);
 
     const focusTimer = window.setTimeout(() => menuRef.current?.querySelector("button, input")?.focus(), 0);
     function handlePointerDown(event) {
@@ -97,13 +125,34 @@ export default function PageContextMenu({ page, position, onClose, onRename, onT
             <button type="button" aria-label="이름 변경 취소" title="취소" disabled={busy} onClick={() => setRenaming(false)}><X size={15} /></button>
           </div>
         </form>
+      ) : moving ? (
+        <div className="page-context-move">
+          <button className="page-context-back" type="button" onClick={() => setMoving(false)}><ArrowLeft size={15} /><span>폴더로 이동</span></button>
+          <div className="page-context-folder-list">
+            <button className={!page.folderId ? "is-current" : ""} type="button" disabled={busy || !page.folderId} onClick={() => runAction(() => onMove(page, ""))}>
+              <Folder size={16} /><span>미분류</span>{!page.folderId && <Check size={14} />}
+            </button>
+            {folders.map((folder) => {
+              const current = folder.id === page.folderId;
+              return (
+                <button key={folder.id} className={current ? "is-current" : ""} type="button" disabled={busy || current} onClick={() => runAction(() => onMove(page, folder.id))}>
+                  <Folder size={16} /><span>{folder.name}</span>{current && <Check size={14} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       ) : (
         <>
+          <button type="button" role="menuitem" disabled={busy} onClick={() => runAction(() => onOpenNewTab(page))}><ExternalLink size={16} /><span>새 창에서 열기</span></button>
+          <button type="button" role="menuitem" disabled={busy} onClick={() => runAction(() => onCopyLink(page))}><Link2 size={16} /><span>링크 복사</span></button>
+          <div className="page-context-separator" role="separator" />
           <button type="button" role="menuitem" disabled={busy} onClick={() => setRenaming(true)}><Pencil size={16} /><span>이름 변경</span></button>
           <button type="button" role="menuitem" disabled={busy} onClick={() => runAction(() => onToggleFavorite(page))}>
             <Star size={16} fill={page.favorite ? "currentColor" : "none"} /><span>{page.favorite ? "즐겨찾기 해제" : "즐겨찾기에 추가"}</span>
           </button>
           <button type="button" role="menuitem" disabled={busy} onClick={() => runAction(() => onDuplicate(page))}><Copy size={16} /><span>복제</span></button>
+          <button type="button" role="menuitem" disabled={busy} onClick={() => setMoving(true)}><FolderInput size={16} /><span>폴더로 이동</span><ChevronRight className="page-context-tail" size={15} /></button>
           <div className="page-context-separator" role="separator" />
           <button className="is-danger" type="button" role="menuitem" disabled={busy} onClick={() => runAction(() => onDelete(page))}><Trash2 size={16} /><span>휴지통으로 이동</span></button>
         </>

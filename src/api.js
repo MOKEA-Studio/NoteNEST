@@ -24,8 +24,11 @@ export const pagesApi = {
     const path = query ? `/search?q=${encodeURIComponent(query)}` : "/pages";
     return request(path);
   },
-  create() {
-    return request("/pages", { method: "POST" });
+  create({ folderId = "" } = {}) {
+    return request("/pages", {
+      method: "POST",
+      body: JSON.stringify({ folderId }),
+    });
   },
   update(id, changes) {
     return request(`/pages/${id}`, {
@@ -35,6 +38,48 @@ export const pagesApi = {
   },
   remove(id) {
     return request(`/pages/${id}`, { method: "DELETE" });
+  },
+};
+
+export const foldersApi = {
+  list() {
+    return request("/folders");
+  },
+  create(name) {
+    return request("/folders", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+  update(id, name) {
+    return request(`/folders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    });
+  },
+  remove(id) {
+    return request(`/folders/${id}`, { method: "DELETE" });
+  },
+};
+
+export const tagsApi = {
+  list() {
+    return request("/tags");
+  },
+  create(name, color) {
+    return request("/tags", {
+      method: "POST",
+      body: JSON.stringify({ name, color }),
+    });
+  },
+  update(id, changes) {
+    return request(`/tags/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(changes),
+    });
+  },
+  remove(id) {
+    return request(`/tags/${id}`, { method: "DELETE" });
   },
 };
 

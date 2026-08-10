@@ -1,8 +1,9 @@
-import { FileText, Search, Settings } from "lucide-react";
+import { FileText, Home, Search, Settings } from "lucide-react";
 
 export default function MobileBottomNav({ view, onNavigate, onOpenSettings }) {
   const items = [
-    { id: "notes", label: "노트", icon: FileText, active: !["search", "settings"].includes(view), action: () => onNavigate("all") },
+    { id: "home", label: "홈", icon: Home, active: view === "home", action: () => onNavigate("home") },
+    { id: "notes", label: "노트", icon: FileText, active: !["home", "search", "settings"].includes(view), action: () => onNavigate("all") },
     { id: "search", label: "검색", icon: Search, active: view === "search", action: () => onNavigate("search") },
     { id: "settings", label: "설정", icon: Settings, active: view === "settings", action: onOpenSettings },
   ];

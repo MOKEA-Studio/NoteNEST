@@ -15,6 +15,7 @@ type Page struct {
 	Blocks    json.RawMessage `json:"blocks"`
 	Icon      string          `json:"icon"`
 	CoverURL  string          `json:"coverUrl"`
+	FolderID  string          `json:"folderId"`
 	Folder    string          `json:"folder"`
 	Tags      []string        `json:"tags"`
 	CreatedAt time.Time       `json:"createdAt"`
@@ -29,9 +30,40 @@ type pageInput struct {
 	Blocks   *json.RawMessage `json:"blocks"`
 	Icon     *string          `json:"icon"`
 	CoverURL *string          `json:"coverUrl"`
+	FolderID *string          `json:"folderId"`
 	Folder   *string          `json:"folder"`
 	Tags     *[]string        `json:"tags"`
 	Favorite *bool            `json:"favorite"`
+}
+
+type createPageInput struct {
+	FolderID string `json:"folderId"`
+}
+
+type Folder struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	PageCount int       `json:"pageCount"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type folderInput struct {
+	Name string `json:"name"`
+}
+
+type TagRecord struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color"`
+	PageCount int       `json:"pageCount"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type tagInput struct {
+	Name  *string `json:"name"`
+	Color *string `json:"color"`
 }
 
 type FontAsset struct {

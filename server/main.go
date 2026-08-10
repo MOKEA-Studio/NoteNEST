@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -76,6 +77,14 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("GET /api/pages/{id}/versions", a.listVersions)
 	mux.HandleFunc("POST /api/pages/{id}/versions/{versionId}/restore", a.restoreVersion)
 	mux.HandleFunc("GET /api/search", a.searchPages)
+	mux.HandleFunc("GET /api/folders", a.listFolders)
+	mux.HandleFunc("POST /api/folders", a.createFolder)
+	mux.HandleFunc("PUT /api/folders/{id}", a.updateFolder)
+	mux.HandleFunc("DELETE /api/folders/{id}", a.deleteFolder)
+	mux.HandleFunc("GET /api/tags", a.listTags)
+	mux.HandleFunc("POST /api/tags", a.createTag)
+	mux.HandleFunc("PUT /api/tags/{id}", a.updateTag)
+	mux.HandleFunc("DELETE /api/tags/{id}", a.deleteTag)
 	mux.HandleFunc("GET /api/trash", a.listTrash)
 	mux.HandleFunc("DELETE /api/trash", a.emptyTrash)
 	mux.HandleFunc("POST /api/trash/{id}/restore", a.restoreTrashPage)
@@ -108,7 +117,14 @@ func (a *api) searchPages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) createPage(w http.ResponseWriter, r *http.Request) {
-	page, err := a.store.createPage(r.Context())
+	var input createPageInput
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 페이지 데이터를 입력해주세요."})
+		return
+	}
+	page, err := a.store.createPageInFolder(r.Context(), strings.TrimSpace(input.FolderID))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -156,6 +172,104 @@ func (a *api) listTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, pages)
+}
+
+func (a *api) listFolders(w http.ResponseWriter, r *http.Request) {
+	folders, err := a.store.listFolders(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, folders)
+}
+
+func (a *api) createFolder(w http.ResponseWriter, r *http.Request) {
+	var input folderInput
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 폴더 데이터를 입력해주세요."})
+		return
+	}
+	folder, err := a.store.createFolder(r.Context(), input.Name)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, folder)
+}
+
+func (a *api) updateFolder(w http.ResponseWriter, r *http.Request) {
+	var input folderInput
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 폴더 데이터를 입력해주세요."})
+		return
+	}
+	folder, err := a.store.updateFolder(r.Context(), r.PathValue("id"), input.Name)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, folder)
+}
+
+func (a *api) deleteFolder(w http.ResponseWriter, r *http.Request) {
+	if err := a.store.deleteFolder(r.Context(), r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) listTags(w http.ResponseWriter, r *http.Request) {
+	tags, err := a.store.listTags(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tags)
+}
+
+func (a *api) createTag(w http.ResponseWriter, r *http.Request) {
+	var input tagInput
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 태그 데이터를 입력해주세요."})
+		return
+	}
+	tag, err := a.store.createTag(r.Context(), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, tag)
+}
+
+func (a *api) updateTag(w http.ResponseWriter, r *http.Request) {
+	var input tagInput
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "올바른 태그 데이터를 입력해주세요."})
+		return
+	}
+	tag, err := a.store.updateTag(r.Context(), r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tag)
+}
+
+func (a *api) deleteTag(w http.ResponseWriter, r *http.Request) {
+	if err := a.store.deleteTag(r.Context(), r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) restoreTrashPage(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +398,15 @@ func cors(next http.Handler) http.Handler {
 
 func writeError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "요청한 항목을 찾을 수 없습니다."})
+		return
+	}
+	if errors.Is(err, errConflict) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": strings.TrimPrefix(err.Error(), errConflict.Error()+": ")})
+		return
+	}
+	if errors.Is(err, errInvalid) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": strings.TrimPrefix(err.Error(), errInvalid.Error()+": ")})
 		return
 	}
 	log.Printf("api error: %v", err)

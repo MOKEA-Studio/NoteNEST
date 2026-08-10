@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -240,7 +241,101 @@ func TestLegacyDatabaseMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.Icon != "" || string(created.Blocks) != emptyDocument || created.Folder != "개인" || len(created.Tags) != 0 {
+	if created.Icon != "" || string(created.Blocks) != emptyDocument || created.FolderID == "" || created.Folder != "개인" || len(created.Tags) != 0 {
 		t.Fatalf("migration defaults were not applied: %#v", created)
+	}
+}
+
+func TestFolderAndTagEntities(t *testing.T) {
+	dataStore, err := openStore(filepath.Join(t.TempDir(), "taxonomy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dataStore.close()
+	ctx := context.Background()
+
+	folders, err := dataStore.listFolders(ctx)
+	if err != nil || len(folders) != 1 || folders[0].Name != "개인" {
+		t.Fatalf("expected the default folder, got %#v, %v", folders, err)
+	}
+	projectFolder, err := dataStore.createFolder(ctx, "프로젝트")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dataStore.createFolder(ctx, "미분류"); !errors.Is(err, errInvalid) {
+		t.Fatalf("the virtual unfiled section must be reserved, got %v", err)
+	}
+	page, err := dataStore.createPageInFolder(ctx, projectFolder.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.FolderID != projectFolder.ID || page.Folder != projectFolder.Name {
+		t.Fatalf("page was not created in the requested folder: %#v", page)
+	}
+	renamedFolder, err := dataStore.updateFolder(ctx, projectFolder.ID, "제품")
+	if err != nil || renamedFolder.Name != "제품" {
+		t.Fatalf("folder rename failed: %#v, %v", renamedFolder, err)
+	}
+	page, err = dataStore.getPage(ctx, page.ID)
+	if err != nil || page.Folder != "제품" {
+		t.Fatalf("folder rename was not reflected on the page: %#v, %v", page, err)
+	}
+	if err := dataStore.deleteFolder(ctx, projectFolder.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = dataStore.getPage(ctx, page.ID)
+	if err != nil || page.FolderID != "" || page.Folder != "미분류" {
+		t.Fatalf("folder deletion did not unfile the page: %#v, %v", page, err)
+	}
+
+	name := "기획"
+	color := "coral"
+	planningTag, err := dataStore.createTag(ctx, tagInput{Name: &name, Color: &color})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagNames := []string{name}
+	page, err = dataStore.updatePage(ctx, page.ID, pageInput{Tags: &tagNames})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags, err := dataStore.listTags(ctx)
+	if err != nil || len(tags) != 1 || tags[0].PageCount != 1 || tags[0].Color != color {
+		t.Fatalf("tag assignment was not synchronized: %#v, %v", tags, err)
+	}
+	renamedTag := "로드맵"
+	newColor := "indigo"
+	updatedTag, err := dataStore.updateTag(ctx, planningTag.ID, tagInput{Name: &renamedTag, Color: &newColor})
+	if err != nil || updatedTag.Name != renamedTag || updatedTag.Color != newColor {
+		t.Fatalf("tag update failed: %#v, %v", updatedTag, err)
+	}
+	page, err = dataStore.getPage(ctx, page.ID)
+	if err != nil || len(page.Tags) != 1 || page.Tags[0] != renamedTag {
+		t.Fatalf("tag rename was not reflected on the page: %#v, %v", page, err)
+	}
+	mergeName := "출시"
+	mergeColor := "cyan"
+	mergeTarget, err := dataStore.createTag(ctx, tagInput{Name: &mergeName, Color: &mergeColor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergedNames := []string{renamedTag, mergeName}
+	if _, err := dataStore.updatePage(ctx, page.ID, pageInput{Tags: &mergedNames}); err != nil {
+		t.Fatal(err)
+	}
+	mergedTag, err := dataStore.updateTag(ctx, planningTag.ID, tagInput{Name: &mergeName})
+	if err != nil || mergedTag.ID != mergeTarget.ID {
+		t.Fatalf("tag merge failed: %#v, %v", mergedTag, err)
+	}
+	page, err = dataStore.getPage(ctx, page.ID)
+	if err != nil || len(page.Tags) != 1 || page.Tags[0] != mergeName {
+		t.Fatalf("tag merge left duplicate page tags: %#v, %v", page, err)
+	}
+	if err := dataStore.deleteTag(ctx, mergedTag.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = dataStore.getPage(ctx, page.ID)
+	if err != nil || len(page.Tags) != 0 {
+		t.Fatalf("tag deletion was not reflected on the page: %#v, %v", page, err)
 	}
 }

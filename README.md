@@ -122,6 +122,7 @@ Database
   "id": "page_001",
   "title": "첫 번째 노트",
   "content": "오늘 떠오른 아이디어...",
+  "folderId": "folder_001",
   "folder": "프로젝트",
   "tags": ["아이디어", "기획"],
   "createdAt": "2026-08-09T10:00:00.000Z",
@@ -139,6 +140,14 @@ GET    /api/pages/{id}
 PUT    /api/pages/{id}
 DELETE /api/pages/{id}
 GET    /api/search?q=keyword
+GET    /api/folders
+POST   /api/folders
+PUT    /api/folders/{id}
+DELETE /api/folders/{id}
+GET    /api/tags
+POST   /api/tags
+PUT    /api/tags/{id}
+DELETE /api/tags/{id}
 GET    /api/trash
 POST   /api/trash/{id}/restore
 DELETE /api/trash/{id}
@@ -198,9 +207,11 @@ NoteNest는 첫 버전에서 개인 메모 앱으로 시작하고, 이후 다음
 - TTF, OTF, WOFF, WOFF2 사용자 폰트 업로드
 - 글자 크기, 페이지 너비, 줄 간격, 테마와 동작을 관리하는 설정 화면
 - 전체 노트 목록·격자 보기와 선택 노트 상세 패널
-- 펼침·접힘 애니메이션과 폴더별 새 페이지를 지원하는 사이드바 폴더 트리
+- 안정 ID, 빈 폴더, 이름 변경·삭제와 폴더별 새 페이지를 지원하는 사이드바 폴더 트리
+- 태그 엔터티 기반 전체 이름 변경·병합·삭제·색상 저장
+- 최근 페이지·즐겨찾기·폴더 현황과 빠른 작업을 모은 워크스페이스 홈
 - 제목·본문·태그 범위를 선택할 수 있는 전역 검색과 날짜 필터
-- 페이지 폴더 이동, 태그 추가·이름 변경·삭제
+- 페이지 메뉴의 이름 변경·복제·즐겨찾기·딥 링크 복사·새 창 열기·폴더 이동·삭제
 - 회의, 프로젝트, 회고, 독서 등 8종 페이지 템플릿
 - 30일 휴지통, 페이지 복원·영구 삭제와 자동 저장 버전 기록
 - 저장 공간 확인, SQLite 수동 백업, Markdown·JSON 가져오기/내보내기

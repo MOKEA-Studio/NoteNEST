@@ -51,6 +51,7 @@ Page {
   Blocks
   Icon
   CoverURL
+  FolderID
   Folder
   Tags[]
   CreatedAt
@@ -87,8 +88,10 @@ Page {
 
 ### 현재 API
 
-- pages CRUD
+- pages CRUD와 폴더 지정 생성
 - search
+- folders CRUD
+- tags CRUD/merge
 - trash/restore/permanent delete
 - versions/restore
 - settings
@@ -102,11 +105,11 @@ Page {
 | --- | --- | --- | --- |
 | 계정 | 없음, 로컬 단일 사용자 | 다중 계정, SSO, 2FA, managed user | 큼, 클라우드 전까지 불필요 |
 | Workspace | 사실상 singleton | 다중 Workspace/Organization | 데이터 모델 준비 필요 |
-| 폴더/페이지 트리 | folder 문자열 + 펼침 | 중첩 page tree/Teamspace | 실제 folder ID와 parent 필요 |
+| 폴더/페이지 트리 | stable folder ID + 펼침/CRUD | 중첩 page tree/Teamspace | parent/sort/drag 필요 |
 | 블록 | Tiptap JSON 문서 | 안정 ID를 가진 block tree | 부분 구현 |
 | 아이콘/커버 | 업로드 지원 | emoji/icon/gallery/AI | 핵심 완료, picker 확장 |
 | 폰트 | 사용자 업로드 | 3개 preset | NoteNest 우위 |
-| 태그 | string + 전역 color map | 속성별 option/color | tag entity 필요 |
+| 태그 | tag entity + page relation + color | 속성별 option/color | 속성 스키마와 sort 필요 |
 | 검색 | title/body/tag/date 범위 | 전역 필터/command/AI | 인덱스·필터 확장 |
 | 버전/Trash | 구현 | 플랜별 기록/Trash | 로컬 retention 설정 보강 |
 | Database | 없음 | data source/properties/views | 가장 큰 제품 격차 |
@@ -204,6 +207,15 @@ Page {
 - 모든 menu keyboard 사용
 - mobile 320px에서 겹침 없음
 - light/dark visual regression
+
+### 2026-08-10 적용 상태
+
+- `folders`, `tags`, `page_tags` 테이블과 기존 문자열 데이터 자동 이관
+- 폴더·태그 CRUD API, 중복 이름 검증, 태그 rename/merge/delete 전체 반영
+- 폴더별 페이지 생성, 빈 폴더, 폴더 이름 변경·삭제, 미분류 이동
+- 페이지 딥 링크 복사·새 창 열기·폴더 이동 메뉴
+- 최근 페이지·즐겨찾기·폴더/태그 현황을 보여주는 실제 홈 화면
+- 데스크톱 및 390px/320px 모바일 브라우저 검증
 
 ## 6. P1: 페이지 그래프와 블록 기반
 

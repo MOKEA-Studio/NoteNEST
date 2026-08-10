@@ -231,15 +231,16 @@ export default function Editor({ page, folders, saveState, settings, onChange, o
             <label className="document-folder">
               <Folder size={15} />
               <span className="sr-only">폴더</span>
-              <input
-                list={`page-folders-${page.id}`}
-                value={page.folder ?? ""}
-                placeholder="폴더"
-                onChange={(event) => onChange({ folder: event.target.value })}
-              />
-              <datalist id={`page-folders-${page.id}`}>
-                {[...new Set([page.folder, ...folders].filter(Boolean))].map((folder) => <option key={folder} value={folder} />)}
-              </datalist>
+              <select
+                value={page.folderId ?? ""}
+                onChange={(event) => {
+                  const folder = folders.find((item) => item.id === event.target.value);
+                  onChange({ folderId: event.target.value, folder: folder?.name ?? "미분류" });
+                }}
+              >
+                <option value="">미분류</option>
+                {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              </select>
             </label>
             <div className="document-tags" aria-label="페이지 태그">
               {(page.tags ?? []).map((tag) => (

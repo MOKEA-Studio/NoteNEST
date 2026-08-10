@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import PageGlyph from "./PageGlyph";
+import FolderContextMenu from "./FolderContextMenu";
 import { pageTitle } from "../utils";
 
 const navigation = [
@@ -58,6 +59,7 @@ function SidebarPage({ page, active, nested = false, tabIndex, onSelect, onOpenM
 export default function Sidebar({
   open,
   pages,
+  folders,
   selectedId,
   query,
   loading,
@@ -65,6 +67,8 @@ export default function Sidebar({
   onQueryChange,
   onCreate,
   onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
   onSelect,
   onOpenPageMenu,
   onNavigate,
@@ -76,18 +80,20 @@ export default function Sidebar({
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [expandedFolders, setExpandedFolders] = useState(() => new Set());
-  const folders = useMemo(() => {
-    const counts = new Map();
-    for (const page of pages) {
-      const name = page.folder?.trim() || "미분류";
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort(([left], [right]) => left.localeCompare(right, "ko-KR"));
-  }, [pages]);
+  const [folderMenu, setFolderMenu] = useState(null);
+  const folderRows = useMemo(() => {
+    const rows = folders.map((folder) => ({
+      ...folder,
+      pageCount: pages.filter((page) => page.folderId === folder.id).length,
+    }));
+    const unfiledCount = pages.filter((page) => !page.folderId).length;
+    if (unfiledCount) rows.push({ id: "", name: "미분류", pageCount: unfiledCount, virtual: true });
+    return rows.sort((left, right) => left.name.localeCompare(right.name, "ko-KR"));
+  }, [folders, pages]);
   const recentPages = pages.slice(0, 5);
   const selectedFolder = useMemo(() => {
     const selected = pages.find((page) => page.id === selectedId);
-    return selected ? selected.folder?.trim() || "미분류" : "";
+    return selected ? selected.folderId || "__unfiled" : "";
   }, [pages, selectedId]);
 
   useEffect(() => {
@@ -116,17 +122,35 @@ export default function Sidebar({
     event.preventDefault();
     const name = folderName.trim();
     if (!name) return;
-    await onCreateFolder(name);
-    setFolderName("");
-    setCreatingFolder(false);
+    try {
+      const created = await onCreateFolder(name);
+      setExpandedFolders((current) => new Set(current).add(created.id));
+      setFolderName("");
+      setCreatingFolder(false);
+    } catch {
+      // The workspace error banner reports the failed request.
+    }
   }
 
-  function toggleFolder(folder) {
+  function toggleFolder(folderId) {
     setExpandedFolders((current) => {
       const next = new Set(current);
-      if (next.has(folder)) next.delete(folder);
-      else next.add(folder);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
       return next;
+    });
+  }
+
+  function openFolderMenu(event, folder) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (folder.virtual) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fromPointer = event.type === "contextmenu" && (event.clientX !== 0 || event.clientY !== 0);
+    setFolderMenu({
+      folder,
+      x: fromPointer ? event.clientX : rect.right + 4,
+      y: fromPointer ? event.clientY : rect.bottom + 4,
     });
   }
 
@@ -175,7 +199,7 @@ export default function Sidebar({
         <div className="sidebar-scroll" aria-busy={loading}>
           <nav className="workspace-nav" aria-label="워크스페이스">
             {navigation.map(({ id, label, icon: Icon }) => {
-              const active = id === "home" ? view === "editor" : view === id;
+              const active = view === id;
               return (
                 <button key={id} className={`workspace-nav-item ${active ? "is-active" : ""}`} type="button" aria-current={active ? "page" : undefined} onClick={() => onNavigate(id)}>
                   <Icon size={18} strokeWidth={1.75} />
@@ -194,30 +218,34 @@ export default function Sidebar({
               </button>
             </div>
             <div className="folder-list">
-              {folders.map(([folder, count]) => {
-                const expanded = expandedFolders.has(folder);
-                const folderPages = pages.filter((page) => (page.folder?.trim() || "미분류") === folder);
-                const panelId = `folder-panel-${encodeURIComponent(folder)}`;
+              {folderRows.map((folder) => {
+                const folderKey = folder.id || "__unfiled";
+                const expanded = expandedFolders.has(folderKey);
+                const folderPages = pages.filter((page) => folder.id ? page.folderId === folder.id : !page.folderId);
+                const panelId = `folder-panel-${encodeURIComponent(folderKey)}`;
                 return (
-                  <div key={folder} className={`folder-tree-item ${expanded ? "is-expanded" : ""}`}>
-                    <div className="folder-tree-heading">
+                  <div key={folderKey} className={`folder-tree-item ${expanded ? "is-expanded" : ""}`} onContextMenu={(event) => openFolderMenu(event, folder)}>
+                    <div className="folder-tree-heading" onKeyDown={(event) => {
+                      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) openFolderMenu(event, folder);
+                    }}>
                       <button
-                        className={`folder-row ${selectedFolder === folder ? "has-selected" : ""}`}
+                        className={`folder-row ${selectedFolder === folderKey ? "has-selected" : ""}`}
                         type="button"
                         aria-expanded={expanded}
                         aria-controls={panelId}
-                        onClick={() => toggleFolder(folder)}
+                        onClick={() => toggleFolder(folderKey)}
                       >
                         <ChevronRight className="folder-chevron" size={14} strokeWidth={2} />
                         {expanded ? <FolderOpen className="folder-icon" size={17} strokeWidth={1.8} /> : <Folder className="folder-icon" size={17} strokeWidth={1.8} />}
-                        <span>{folder}</span>
-                        <small>{count}</small>
+                        <span>{folder.name}</span>
+                        <small>{folder.pageCount}</small>
                       </button>
-                      <button className="folder-add-page" type="button" aria-label={`${folder}에 페이지 추가`} title={`${folder}에 새 페이지`} onClick={() => onCreate(folder)}>
+                      <button className="folder-add-page" type="button" aria-label={`${folder.name}에 페이지 추가`} title={`${folder.name}에 새 페이지`} onClick={() => onCreate(folder)}>
                         <Plus size={14} />
                       </button>
+                      {!folder.virtual && <button className="folder-more-button" type="button" aria-label={`${folder.name} 폴더 메뉴`} title="폴더 메뉴" onClick={(event) => openFolderMenu(event, folder)}><MoreHorizontal size={14} /></button>}
                     </div>
-                    <div id={panelId} className="folder-children-shell" role="group" aria-label={`${folder} 폴더 페이지`} aria-hidden={!expanded}>
+                    <div id={panelId} className="folder-children-shell" role="group" aria-label={`${folder.name} 폴더 페이지`} aria-hidden={!expanded}>
                       <div className="folder-children">
                         {folderPages.map((page) => (
                           <SidebarPage
@@ -243,7 +271,7 @@ export default function Sidebar({
                   <button type="button" aria-label="취소" title="취소" onClick={() => { setFolderName(""); setCreatingFolder(false); }}><X size={15} /></button>
                 </form>
               )}
-              {!loading && folders.length === 0 && <p className="sidebar-empty-copy">아직 폴더가 없습니다.</p>}
+              {!loading && folderRows.length === 0 && <p className="sidebar-empty-copy">아직 폴더가 없습니다.</p>}
             </div>
           </section>
 
@@ -272,6 +300,14 @@ export default function Sidebar({
         </div>
       </aside>
       {open && <button className="sidebar-backdrop" type="button" aria-label="사이드바 닫기" onClick={onClose} />}
+      <FolderContextMenu
+        folder={folderMenu?.folder}
+        position={folderMenu}
+        onClose={() => setFolderMenu(null)}
+        onCreatePage={onCreate}
+        onRename={onRenameFolder}
+        onDelete={onDeleteFolder}
+      />
     </>
   );
 }
